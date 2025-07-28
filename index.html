@@ -82,6 +82,20 @@
             opacity: 0;
             transition: opacity 1s;
         }
+        #musicNotice {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff00;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #00ff00;
+            padding: 24px;
+            font-size: 1.3em;
+            z-index: 20;
+            text-shadow: 2px 2px 0 #000;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -100,8 +114,9 @@
             <img id="splash-img" src="" alt="Splash">
         </div>
         <div id="fade" class="fade"></div>
+        <div id="musicNotice">Click anywhere to enable background music!</div>
     </div>
-    <audio id="bg-music" src="" loop></audio>
+    <audio id="bg-music" src="" preload="auto"></audio>
     <script>
     // --- Asset paths ---
     const ASSETS = {
@@ -117,14 +132,14 @@
         ]
     };
 
-    // --- Music files (add as many as you want in the folder) ---
+    // --- Music files (edit this list to match your mp3 files) ---
     const MUSIC_FILES = [
         "song1.mp3",
         "song2.mp3",
         "song3.mp3",
         "song4.mp3",
         "song5.mp3"
-        // Add more mp3 filenames here
+        // Add more...
     ];
 
     // --- UI Elements ---
@@ -139,6 +154,7 @@
     const splashImg = document.getElementById('splash-img');
     const fadeDiv = document.getElementById('fade');
     const music = document.getElementById('bg-music');
+    const musicNotice = document.getElementById('musicNotice');
 
     // --- Game States ---
     const GameState = {
@@ -164,6 +180,9 @@
     let levelTransition = false;
     let victory = false;
 
+    // --- Scoring threshold ---
+    const SCORE_TO_LEVEL_UP = 20;
+
     // --- Drone ---
     const DRONE_START = {x: 100, y: 300};
     const drone = {
@@ -176,7 +195,8 @@
         inPlume: false,
         inPlumeLastFrame: false,
         pulseTime: 0,
-        rotorSpin: 0
+        rotorSpin: 0,
+        plumeFrameCounter: 0
     };
 
     // --- Backgrounds ---
@@ -189,7 +209,7 @@
     // --- Music ---
     let currentMusicIndex = -1;
     music.volume = 0.4;
-    music.loop = false; // We handle looping ourselves
+    music.loop = false; // we handle song switching
 
     function pickRandomMusicIndex(excludeIndex = -1) {
         if (MUSIC_FILES.length < 2) return 0;
@@ -203,9 +223,13 @@
         if (MUSIC_FILES.length === 0) return;
         const idx = pickRandomMusicIndex(currentMusicIndex);
         currentMusicIndex = idx;
+        music.pause();
         music.src = MUSIC_FILES[idx];
-        music.currentTime = 0;
-        music.play().catch(()=>{});
+        music.load();
+        music.play().catch(() => {
+            // Show notice if autoplay is blocked
+            musicNotice.style.display = "block";
+        });
     }
     music.onended = function() {
         playRandomMusic();
@@ -256,25 +280,25 @@
     document.addEventListener('keydown', (e) => { keys[e.key] = true; });
     document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
+    // --- Start music after first user interaction (anywhere) ---
+    function ensureMusicPlaying() {
+        if (music.paused) {
+            playRandomMusic();
+            musicNotice.style.display = "none";
+        }
+    }
+    window.addEventListener("click", ensureMusicPlaying, {once: true});
+    window.addEventListener("keydown", ensureMusicPlaying, {once: true});
+    window.addEventListener("touchstart", ensureMusicPlaying, {once: true});
+    // Also try again whenever music is blocked
+    music.addEventListener('play', () => { musicNotice.style.display = "none"; });
+
     // --- Splash click handler ---
     splashDiv.addEventListener('click', function() {
         if (gameState === GameState.SplashStart || gameState === GameState.GameOver || gameState === GameState.Victory) {
             hideSplash();
             setTimeout(startGame, 200);
         }
-    });
-
-    // --- Music start policy ---
-    window.addEventListener("load", function () {
-        playRandomMusic();
-        music.play().catch(() => {
-            // Autoplay likely blocked — wait for first user interaction
-            const resumeMusic = () => {
-                playRandomMusic();
-                document.removeEventListener("click", resumeMusic);
-            };
-            document.addEventListener("click", resumeMusic);
-        });
     });
 
     // --- Game Start/Reset ---
@@ -290,6 +314,7 @@
         droneControlEnabled = true;
         statusElement.textContent = "MONITORING";
         updateUI();
+        ensureMusicPlaying();
     }
 
     function randomInRange(a, b) { return a + Math.random() * (b - a); }
@@ -321,6 +346,7 @@
         drone.pulseTime = 0; drone.rotorSpin = 0;
         drone.inPlume = false;
         drone.inPlumeLastFrame = false;
+        drone.plumeFrameCounter = 0;
 
         currentBg = backgrounds[lvl-1];
 
@@ -352,7 +378,7 @@
         levelElement.textContent = level;
     }
 
-    // --- Drone Movement ---
+    // --- Drone Movement and Scoring (EASIER: every 5 frames in plume, bigger hitbox) ---
     function updateDrone() {
         if (!droneControlEnabled) return;
         const speed = 2.5;
@@ -366,31 +392,40 @@
         drone.x += (drone.targetX - drone.x) * smoothing;
         drone.y += (drone.targetY - drone.y) * smoothing;
         drone.inPlume = false;
+
+        // Scoring logic: score every 5 frames while in plume, with bigger hitbox
+        let inPlumeThisFrame = false;
         if (level < 3) {
             for (let plume of plumes) {
                 const dist = Math.sqrt((drone.x - plume.x) ** 2 + (drone.y - plume.y) ** 2);
-                if (dist < plume.radius * 0.7) {
-                    drone.inPlume = true;
-                    if (!drone.inPlumeLastFrame) {
-                        score += 1;
-                    }
+                if (dist < plume.radius * 1.0) { // easier: 1.0 instead of 0.7
+                    inPlumeThisFrame = true;
                     break;
                 }
             }
         } else if (level === 3 && level3Plume) {
             const dist = Math.sqrt((drone.x - level3Plume.x) ** 2 + (drone.y - level3Plume.y) ** 2);
-            if (dist < level3Plume.radius * 0.7) {
-                drone.inPlume = true;
-                if (!drone.inPlumeLastFrame) {
-                    score += 1;
-                }
+            if (dist < level3Plume.radius * 1.0) { // easier: 1.0 instead of 0.7
+                inPlumeThisFrame = true;
             }
         }
+        if (inPlumeThisFrame) {
+            drone.inPlume = true;
+            drone.plumeFrameCounter = (drone.plumeFrameCounter || 0) + 1;
+            // Score every 5 frames in plume:
+            if (drone.plumeFrameCounter % 5 === 1) {
+                score += 1;
+            }
+        } else {
+            drone.inPlume = false;
+            drone.plumeFrameCounter = 0;
+        }
+
         if (drone.inPlume) drone.pulseTime += 0.2;
         drone.inPlumeLastFrame = drone.inPlume;
     }
 
-    // --- Drone Drawing ---
+    // --- Drone Drawing (unchanged) ---
     function drawPixelDrone() {
         ctx.save();
         ctx.translate(drone.x, drone.y);
@@ -546,7 +581,6 @@
         if (currentBg && currentBg.complete)
             ctx.drawImage(currentBg, 0, 0, canvas.width, canvas.height);
         else {
-            // Default fallback BG
             ctx.fillStyle = "#202040";
             ctx.fillRect(0,0,canvas.width,canvas.height);
         }
@@ -709,7 +743,7 @@
                 statusElement.textContent = "MONITORING";
                 droneControlEnabled = true;
             }
-        }, 20);
+        }, 1000);
         if (lives <= 0) {
             setTimeout(() => {
                 gameState = GameState.GameOver;
@@ -718,20 +752,19 @@
         }
     }
 
-    // --- Level Up Logic ---
+    // --- Level Up Logic (at 20 points) ---
     function checkForLevelUp() {
-        if (score >= 20 && level < 3 && gameState === GameState.Playing && !levelTransition) {
-            // Begin transition out
+        if (score >= SCORE_TO_LEVEL_UP && level < 3 && gameState === GameState.Playing && !levelTransition) {
             levelTransition = true;
             droneControlEnabled = false;
             statusElement.textContent = "LEVEL UP!";
         }
-        if (score >= 20 && level === 3 && !victory && gameState === GameState.Playing) {
+        if (score >= SCORE_TO_LEVEL_UP && level === 3 && !victory && gameState === GameState.Playing) {
             victory = true;
             setTimeout(() => {
                 gameState = GameState.Victory;
                 showSplash(GameState.Victory);
-            }, 20);
+            }, 1000);
         }
     }
 
@@ -743,10 +776,8 @@
         const speed = 4;
         drone.x += speed;
         if (drone.x > canvas.width + 40) {
-            // Fade out
             levelTransition = false;
             fadeToBlack(() => {
-                // Start next level
                 if (level < 3) {
                     startLevel(level + 1);
                     level += 1;
