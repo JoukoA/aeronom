@@ -378,7 +378,7 @@
         levelElement.textContent = level;
     }
 
-    // --- Drone Movement and Scoring (EASIER: every 5 frames in plume, bigger hitbox) ---
+    // --- Drone Movement and Scoring (FASTEST: every frame in plume, bigger hitbox) ---
     function updateDrone() {
         if (!droneControlEnabled) return;
         const speed = 2.5;
@@ -393,32 +393,27 @@
         drone.y += (drone.targetY - drone.y) * smoothing;
         drone.inPlume = false;
 
-        // Scoring logic: score every 5 frames while in plume, with bigger hitbox
+        // Scoring logic: score EVERY FRAME while in plume, with bigger hitbox
         let inPlumeThisFrame = false;
         if (level < 3) {
             for (let plume of plumes) {
                 const dist = Math.sqrt((drone.x - plume.x) ** 2 + (drone.y - plume.y) ** 2);
-                if (dist < plume.radius * 1.0) { // easier: 1.0 instead of 0.7
+                if (dist < plume.radius * 1.1) { // even easier: 1.1 instead of 0.7
                     inPlumeThisFrame = true;
                     break;
                 }
             }
         } else if (level === 3 && level3Plume) {
             const dist = Math.sqrt((drone.x - level3Plume.x) ** 2 + (drone.y - level3Plume.y) ** 2);
-            if (dist < level3Plume.radius * 1.0) { // easier: 1.0 instead of 0.7
+            if (dist < level3Plume.radius * 1.1) {
                 inPlumeThisFrame = true;
             }
         }
         if (inPlumeThisFrame) {
             drone.inPlume = true;
-            drone.plumeFrameCounter = (drone.plumeFrameCounter || 0) + 1;
-            // Score every 5 frames in plume:
-            if (drone.plumeFrameCounter % 5 === 1) {
-                score += 1;
-            }
+            score += 1; // every frame!
         } else {
             drone.inPlume = false;
-            drone.plumeFrameCounter = 0;
         }
 
         if (drone.inPlume) drone.pulseTime += 0.2;
@@ -779,8 +774,8 @@
             levelTransition = false;
             fadeToBlack(() => {
                 if (level < 3) {
-                    startLevel(level + 1);
                     level += 1;
+                    startLevel(level);
                     updateUI();
                     droneControlEnabled = true;
                     statusElement.textContent = "MONITORING";
