@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,21 +16,21 @@
             font-family: 'Courier New', monospace;
             color: #00ff00;
         }
-        
+
         #gameContainer {
             position: relative;
             background: linear-gradient(to bottom, #16213e 0%, #0f3460 50%, #1a1a2e 100%);
             border: 3px solid #00ff00;
             box-shadow: 0 0 20px #00ff00;
         }
-        
+
         #gameCanvas {
             display: block;
             image-rendering: pixelated;
             image-rendering: -moz-crisp-edges;
             image-rendering: crisp-edges;
         }
-        
+
         #ui {
             position: absolute;
             top: 10px;
@@ -39,7 +39,7 @@
             font-size: 16px;
             text-shadow: 2px 2px 0px #000000;
         }
-        
+
         #instructions {
             position: absolute;
             bottom: 10px;
@@ -49,14 +49,6 @@
             text-shadow: 1px 1px 0px #000000;
         }
     </style>
-
-<!--[if gte mso 9]><xml>
-<mso:CustomDocumentProperties>
-<mso:_dlc_DocId msdt:dt="string">AEROMON-1755714503-10200</mso:_dlc_DocId>
-<mso:_dlc_DocIdItemGuid msdt:dt="string">32322e01-c292-4b40-a110-29f305540dac</mso:_dlc_DocIdItemGuid>
-<mso:_dlc_DocIdUrl msdt:dt="string">https://aeromonfinland.sharepoint.com/_layouts/15/DocIdRedir.aspx?ID=AEROMON-1755714503-10200, AEROMON-1755714503-10200</mso:_dlc_DocIdUrl>
-</mso:CustomDocumentProperties>
-</xml><![endif]-->
 </head>
 <body>
     <div id="gameContainer">
@@ -66,67 +58,45 @@
             <div>STATUS: <span id="status">MONITORING</span></div>
         </div>
         <div id="instructions">
-            Arrow Keys: Move Drone | Avoid Flares | Collect Emission Data | Click to enable audio<br>
-            
-                    </div>
+            Arrow Keys: Move Drone | Avoid Flares | Collect Emission Data | Click to enable Audio<br>
+        </div>
     </div>
 
+    <audio id="bg-music" src="Aeronom.mp3" loop></audio>
+
     <script>
+        // Level mechanics
         let level = 1;
-const LEVEL_DURATION = 60 * 60; // 60 seconds * 60fps (if using requestAnimationFrame)
-let levelChanged = false;
+        const LEVEL_DURATION = 60 * 60; // 60 seconds * 60fps
+        let levelChanged = false;
 
-// Preload second background image
-const bgImg2 = new Image();
-bgImg2.src = 'level2_background.png';
-
-// In your gameLoop, check and handle level change:
-function gameLoop() {
-    gameTime++;
-
-    // Level change after 1 min (assuming 60fps)
-    if (level === 1 && gameTime > LEVEL_DURATION && !levelChanged) {
-        level = 2;
-        backgroundImage = bgImg2; // Switch background image
-
-        // Change song
-        const music = document.getElementById('bg-music');
-        music.pause();
-        music.src = 'level2.mp3';
-        music.load();
-        music.play().catch(()=>{});
-        levelChanged = true;
-    }
-
-    // ... (rest of your game loop code)
-    requestAnimationFrame(gameLoop);
-}
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
-        const statusElement = document.getElementById('status');
-        
-        // Disable image smoothing for pixel art
-        ctx.imageSmoothingEnabled = false;
-        
-        // Game state
-        let gameTime = 0;
-        let score = 0;
-        let keys = {};
-        let backgroundImage = null;
-        let windDirection = 1; // 1 for right, -1 for left
-        let windSpeed = 0.5;
-        
-        // Load background image
+        // Preload background images
         const bgImg = new Image();
+        const bgImg2 = new Image();
+        bgImg.src = 'refinery_background.png';
+        bgImg2.src = 'level2_background.png';
+
+        let backgroundImage = null;
         bgImg.onload = function() {
             backgroundImage = bgImg;
         };
         bgImg.onerror = function() {
             console.log("No custom background found, using generated background");
         };
-        bgImg.src = 'refinery_background.png';
-        
+
+        // Game state
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const statusElement = document.getElementById('status');
+        ctx.imageSmoothingEnabled = false;
+
+        let gameTime = 0;
+        let score = 0;
+        let keys = {};
+        let windDirection = 1; // 1 for right, -1 for left
+        let windSpeed = 0.5;
+
         // Drone properties
         const drone = {
             x: 100,
@@ -139,7 +109,7 @@ function gameLoop() {
             pulseTime: 0,
             rotorSpin: 0
         };
-        
+
         // Industrial structures with flare positions
         const industrialStructures = [
             {x: 150, y: 400, w: 80, h: 150, type: 'distillation', flareX: 190, flareY: 400},
@@ -148,7 +118,7 @@ function gameLoop() {
             {x: 520, y: 450, w: 70, h: 100, type: 'tank', flareX: 0, flareY: 0}, // No flare
             {x: 620, y: 380, w: 50, h: 170, type: 'tower', flareX: 645, flareY: 380}
         ];
-        
+
         // Emission sources (fewer sources)
         const emissionSources = [];
         for (let i = 0; i < 4; i++) {
@@ -159,79 +129,79 @@ function gameLoop() {
                 emissionRate: 300 + Math.random() * 200 // Longer intervals
             });
         }
-        
+
         // Emission plumes (max 2)
         let plumes = [];
-        
+
         // Flares
         let flares = [];
         let flareSpawnTimer = 0;
-        
+
         // Input handling
         document.addEventListener('keydown', (e) => {
             keys[e.key] = true;
         });
-        
+
         document.addEventListener('keyup', (e) => {
             keys[e.key] = false;
         });
-        
+
         // Create pixel-perfect drone sprite
         function drawPixelDrone() {
             ctx.save();
             ctx.translate(drone.x, drone.y);
-            
+
             // Pulse green when in plume
             if (drone.inPlume) {
                 const pulse = Math.sin(drone.pulseTime) * 0.5 + 0.5;
                 ctx.shadowColor = '#00ff00';
                 ctx.shadowBlur = 15 * pulse;
             }
-            
+
             // Drone body (detailed pixel art)
             ctx.fillStyle = '#4a4a4a';
             ctx.fillRect(-12, -6, 24, 12);
-            
+
             ctx.fillStyle = '#666666';
             ctx.fillRect(-10, -4, 20, 8);
-            
+
             // Central camera/sensor
             ctx.fillStyle = '#2a2a2a';
             ctx.fillRect(-3, -2, 6, 4);
             ctx.fillStyle = '#ff0000';
             ctx.fillRect(-1, -1, 2, 2);
-            
+
             // Landing gear
             ctx.fillStyle = '#333333';
             ctx.fillRect(-8, 6, 2, 4);
             ctx.fillRect(6, 6, 2, 4);
-            
+
             // Rotor arms
             ctx.fillStyle = '#555555';
             ctx.fillRect(-16, -8, 8, 2);
             ctx.fillRect(8, -8, 8, 2);
             ctx.fillRect(-16, 6, 8, 2);
             ctx.fillRect(8, 6, 8, 2);
-            
+
             // Rotors with spinning effect
             const rotorPositions = [
                 {x: -12, y: -7}, {x: 12, y: -7},
                 {x: -12, y: 7}, {x: 12, y: 7}
             ];
-            
+
             drone.rotorSpin += 0.8;
-            
+
             rotorPositions.forEach((pos, i) => {
                 ctx.save();
                 ctx.translate(pos.x, pos.y);
-                
+
                 ctx.fillStyle = '#2a2a2a';
                 ctx.fillRect(-2, -2, 4, 4);
-                
+
                 ctx.strokeStyle = 'rgba(85, 85, 85, 0.6)';
                 ctx.lineWidth = 2;
                 const angle = drone.rotorSpin + (i * Math.PI / 2);
-                
+
                 for (let j = 0; j < 4; j++) {
                     ctx.save();
                     ctx.rotate(angle + (j * Math.PI / 2));
@@ -241,29 +211,29 @@ function gameLoop() {
                     ctx.stroke();
                     ctx.restore();
                 }
-                
+
                 ctx.restore();
             });
-            
+
             ctx.restore();
         }
-        
+
         // Drone movement
         function updateDrone() {
             const speed = 2.5;
             const smoothing = 0.12;
-            
+
             if (keys['ArrowLeft']) drone.targetX -= speed;
             if (keys['ArrowRight']) drone.targetX += speed;
             if (keys['ArrowUp']) drone.targetY -= speed;
             if (keys['ArrowDown']) drone.targetY += speed;
-            
+
             drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
             drone.targetY = Math.max(20, Math.min(canvas.height - 80, drone.targetY));
-            
+
             drone.x += (drone.targetX - drone.x) * smoothing;
             drone.y += (drone.targetY - drone.y) * smoothing;
-            
+
             // Check if in plume
             drone.inPlume = false;
             for (let plume of plumes) {
@@ -274,12 +244,12 @@ function gameLoop() {
                     break;
                 }
             }
-            
+
             if (drone.inPlume) {
                 drone.pulseTime += 0.2;
             }
         }
-        
+
         // Update emissions (max 2 plumes)
         function updateEmissions() {
             // Change wind occasionally
@@ -287,7 +257,7 @@ function gameLoop() {
                 windDirection = Math.random() > 0.5 ? 1 : -1;
                 windSpeed = 0.3 + Math.random() * 0.4;
             }
-            
+
             emissionSources.forEach(source => {
                 source.lastEmission++;
                 if (source.lastEmission > source.emissionRate && plumes.length < 2) {
@@ -302,12 +272,12 @@ function gameLoop() {
                         opacity: 0.7,
                         drift: 0
                     });
-                    
+
                     source.lastEmission = 0;
                     source.emissionRate = 400 + Math.random() * 300;
                 }
             });
-            
+
             // Update existing plumes with wind drift
             plumes = plumes.filter(plume => {
                 plume.life--;
@@ -318,7 +288,7 @@ function gameLoop() {
                 return plume.life > 0;
             });
         }
-        
+
         // Spawn flares on buildings
         function spawnFlare() {
             const flareStructures = industrialStructures.filter(s => s.flareX > 0);
@@ -334,7 +304,7 @@ function gameLoop() {
                 });
             }
         }
-        
+
         // Update flares
         function updateFlares() {
             flareSpawnTimer++;
@@ -342,14 +312,14 @@ function gameLoop() {
                 spawnFlare();
                 flareSpawnTimer = 0;
             }
-            
+
             flares = flares.filter(flare => {
                 if (flare.warning > 0) {
                     flare.warning--;
                 } else if (flare.burning < flare.maxBurning) {
                     flare.burning++;
                     flare.flameLength = 40 + Math.sin(gameTime * 0.2) * 10 + Math.random() * 8;
-                    
+
                     // Check collision with drone
                     const dist = Math.sqrt((drone.x - flare.x) ** 2 + (drone.y - flare.y) ** 2);
                     if (dist < 35) {
@@ -360,11 +330,11 @@ function gameLoop() {
                         setTimeout(() => statusElement.textContent = "MONITORING", 3500);
                     }
                 }
-                
+
                 return flare.warning > 0 || flare.burning < flare.maxBurning;
             });
         }
-        
+
         // Draw background
         function drawBackground() {
             if (backgroundImage && backgroundImage.complete) {
@@ -377,11 +347,11 @@ function gameLoop() {
                 gradient.addColorStop(1, '#1a2a3a');
                 ctx.fillStyle = gradient;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
+
                 // Ground
                 ctx.fillStyle = '#3a3a2a';
                 ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
-                
+
                 // Draw industrial structures
                 industrialStructures.forEach(struct => {
                     // Main structure
@@ -396,7 +366,7 @@ function gameLoop() {
                         // Draw rectangular structure
                         ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
                     }
-                    
+
                     // Add details
                     ctx.fillStyle = '#2a2a2a';
                     if (struct.type === 'distillation') {
@@ -410,12 +380,12 @@ function gameLoop() {
                         ctx.fillStyle = '#1a1a1a';
                         ctx.fillRect(struct.x + 20, struct.y + 20, struct.w - 40, struct.h - 40);
                     }
-                    
+
                     // Pipes
                     ctx.fillStyle = '#555555';
                     ctx.fillRect(struct.x - 5, struct.y + struct.h/2, struct.w + 10, 4);
                 });
-                
+
                 // Draw emission source markers
                 ctx.fillStyle = '#666666';
                 emissionSources.forEach(source => {
@@ -426,13 +396,13 @@ function gameLoop() {
                 });
             }
         }
-        
+
         // Draw grey sideways emission plumes
         function drawPlumes() {
             plumes.forEach(plume => {
                 ctx.save();
                 ctx.globalAlpha = plume.opacity;
-                
+
                 // Grey cloud with wind drift
                 const gradient = ctx.createRadialGradient(
                     plume.x, plume.y, 0,
@@ -442,128 +412,136 @@ function gameLoop() {
                 gradient.addColorStop(0.4, '#666666');
                 gradient.addColorStop(0.8, '#444444');
                 gradient.addColorStop(1, 'rgba(68, 68, 68, 0)');
-                
+
                 ctx.fillStyle = gradient;
-                
+
                 // Draw elongated cloud shape
                 ctx.beginPath();
                 ctx.ellipse(plume.x + plume.drift/3, plume.y, plume.radius * 1.5, plume.radius * 0.8, 0, 0, Math.PI * 2);
                 ctx.fill();
-                
+
                 // Add wispy edges
                 for (let i = 0; i < 6; i++) {
                     const angle = (i / 6) * Math.PI * 2;
                     const distance = plume.radius * (0.8 + Math.random() * 0.4);
                     const px = plume.x + plume.drift/3 + Math.cos(angle) * distance;
                     const py = plume.y + Math.sin(angle) * distance * 0.6;
-                    
+
                     ctx.fillStyle = `rgba(102, 102, 102, ${0.2 * plume.opacity})`;
                     ctx.fillRect(px - 1, py - 1, 2, 2);
                 }
-                
+
                 ctx.restore();
             });
         }
-        
+
         // Draw cartoon sideways flames
-       function drawFlares() {
-    flares.forEach(flare => {
-        if (flare.warning > 0) {
-            // Comic-style warning flash with symbol
-            const pulse = Math.sin(gameTime * 0.4) * 0.5 + 0.5;
-            ctx.fillStyle = `rgba(255, 50, 50, ${pulse * 0.8})`;
-            ctx.font = "bold 14px Courier New";
-            ctx.fillText("⚠", flare.x - 6, flare.y - 10);
-        } else if (flare.burning > 0) {
-            // Nozzle base
-            ctx.fillStyle = "#2b2b2b";
-            ctx.fillRect(flare.x - 3, flare.y - 2, 6, 4);
+        function drawFlares() {
+            flares.forEach(flare => {
+                if (flare.warning > 0) {
+                    // Comic-style warning flash with symbol
+                    const pulse = Math.sin(gameTime * 0.4) * 0.5 + 0.5;
+                    ctx.fillStyle = `rgba(255, 50, 50, ${pulse * 0.8})`;
+                    ctx.font = "bold 14px Courier New";
+                    ctx.fillText("⚠", flare.x - 6, flare.y - 10);
+                } else if (flare.burning > 0) {
+                    // Nozzle base
+                    ctx.fillStyle = "#2b2b2b";
+                    ctx.fillRect(flare.x - 3, flare.y - 2, 6, 4);
 
-            // Comic-style flame burst using layered ellipses
-            const flameColors = ['#ffcc00', '#ff9900', '#ff6600', '#ff3300'];
-            const segments = 4;
-            const flameLength = flare.flameLength;
+                    // Comic-style flame burst using layered ellipses
+                    const flameColors = ['#ffcc00', '#ff9900', '#ff6600', '#ff3300'];
+                    const segments = 4;
+                    const flameLength = flare.flameLength;
 
-            for (let i = 0; i < segments; i++) {
-                const segmentLength = (flameLength / segments) * (segments - i) / segments;
-                const segmentHeight = 8 - i * 1.5;
-                const offset = Math.sin((gameTime + i * 10) * 0.3) * 2;
+                    for (let i = 0; i < segments; i++) {
+                        const segmentLength = (flameLength / segments) * (segments - i) / segments;
+                        const segmentHeight = 8 - i * 1.5;
+                        const offset = Math.sin((gameTime + i * 10) * 0.3) * 2;
 
-                ctx.fillStyle = flameColors[i];
-                ctx.beginPath();
-                ctx.ellipse(
-                    flare.x + 4 + i * 6 + offset,
-                    flare.y,
-                    segmentLength,
-                    segmentHeight,
-                    0,
-                    0,
-                    Math.PI * 2
-                );
-                ctx.fill();
+                        ctx.fillStyle = flameColors[i];
+                        ctx.beginPath();
+                        ctx.ellipse(
+                            flare.x + 4 + i * 6 + offset,
+                            flare.y,
+                            segmentLength,
+                            segmentHeight,
+                            0,
+                            0,
+                            Math.PI * 2
+                        );
+                        ctx.fill();
 
-                // Comic-style sparkles
-                for (let j = 0; j < 2; j++) {
-                    const sparkX = flare.x + 6 + i * 6 + Math.random() * 4;
-                    const sparkY = flare.y + (Math.random() - 0.5) * segmentHeight;
-                    ctx.fillStyle = "#ffffcc";
-                    ctx.fillRect(sparkX, sparkY, 1.5, 1.5);
+                        // Comic-style sparkles
+                        for (let j = 0; j < 2; j++) {
+                            const sparkX = flare.x + 6 + i * 6 + Math.random() * 4;
+                            const sparkY = flare.y + (Math.random() - 0.5) * segmentHeight;
+                            ctx.fillStyle = "#ffffcc";
+                            ctx.fillRect(sparkX, sparkY, 1.5, 1.5);
+                        }
+                    }
+
+                    // Occasionally show "WHOOSH!" text
+                    if (Math.random() < 0.03) {
+                        ctx.font = "bold 12px Courier New";
+                        ctx.fillStyle = "#ffff33";
+                        ctx.fillText("WHOOSH", flare.x + 20, flare.y - 10 + Math.random() * 4);
+                    }
                 }
-            }
-
-            // Occasionally show "WHOOSH!" text
-            if (Math.random() < 0.03) {
-                ctx.font = "bold 12px Courier New";
-                ctx.fillStyle = "#ffff33";
-                ctx.fillText("WHOOSH", flare.x + 20, flare.y - 10 + Math.random() * 4);
-            }
+            });
         }
-    });
-}
 
-        
         // Main game loop
         function gameLoop() {
             gameTime++;
-            
+
+            // Level change after 1 min (assuming 60fps)
+            if (level === 1 && gameTime > LEVEL_DURATION && !levelChanged) {
+                level = 2;
+                backgroundImage = bgImg2; // Switch background image
+
+                // Change song
+                const music = document.getElementById('bg-music');
+                music.pause();
+                music.src = 'level2.mp3';
+                music.load();
+                music.play().catch(()=>{});
+                levelChanged = true;
+            }
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
             updateDrone();
             updateEmissions();
             updateFlares();
-            
+
             drawBackground();
             drawPlumes();
             drawFlares();
             drawPixelDrone();
-            
+
             scoreElement.textContent = score;
-            
+
             requestAnimationFrame(gameLoop);
         }
-        
+
         gameLoop();
-    </script>
-<audio id="bg-music" src="Aeronom.mp3" loop ></audio>
 
+        // Background music play policy for browsers
+        window.addEventListener("load", function () {
+            const music = document.getElementById("bg-music");
+            music.volume = 0.4; // Optional: adjust volume (0.0 - 1.0)
 
-
-    
-<script>
-    window.addEventListener("load", function () {
-        const music = document.getElementById("bg-music");
-        music.volume = 0.4; // Optional: adjust volume (0.0 - 1.0)
-
-        // Try autoplay
-        music.play().catch(() => {
-            // Autoplay likely blocked — wait for first user interaction
-            const resumeMusic = () => {
-                music.play();
-                document.removeEventListener("click", resumeMusic);
-            };
-            document.addEventListener("click", resumeMusic);
+            // Try autoplay
+            music.play().catch(() => {
+                // Autoplay likely blocked — wait for first user interaction
+                const resumeMusic = () => {
+                    music.play();
+                    document.removeEventListener("click", resumeMusic);
+                };
+                document.addEventListener("click", resumeMusic);
+            });
         });
-    });
-</script>
+    </script>
 </body>
 </html>
