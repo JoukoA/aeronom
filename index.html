@@ -80,27 +80,7 @@ let levelChanged = false;
 const bgImg2 = new Image();
 bgImg2.src = 'level2_background.png';
 
-// In your gameLoop, check and handle level change:
-function gameLoop() {
-    gameTime++;
 
-    // Level change after 1 min (assuming 60fps)
-    if (level === 1 && gameTime > LEVEL_DURATION && !levelChanged) {
-        level = 2;
-        backgroundImage = bgImg2; // Switch background image
-
-        // Change song
-        const music = document.getElementById('bg-music');
-        music.pause();
-        music.src = 'level2.mp3';
-        music.load();
-        music.play().catch(()=>{});
-        levelChanged = true;
-    }
-
-    // ... (rest of your game loop code)
-    requestAnimationFrame(gameLoop);
-}
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
@@ -523,26 +503,27 @@ function gameLoop() {
 
         
         // Main game loop
-        function gameLoop() {
-            gameTime++;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            updateDrone();
-            updateEmissions();
-            updateFlares();
-            
-            drawBackground();
-            drawPlumes();
-            drawFlares();
-            drawPixelDrone();
-            
-            scoreElement.textContent = score;
-            
-            requestAnimationFrame(gameLoop);
-        }
-        
-        gameLoop();
+       // In your gameLoop, check and handle level change:
+function gameLoop() {
+    gameTime++;
+
+    // Level change after 1 min (assuming 60fps)
+    if (level === 1 && gameTime > LEVEL_DURATION && !levelChanged) {
+        level = 2;
+        backgroundImage = bgImg2; // Switch background image
+
+        // Change song
+        const music = document.getElementById('bg-music');
+        music.pause();
+        music.src = 'level2.mp3';
+        music.load();
+        music.play().catch(()=>{});
+        levelChanged = true;
+    }
+
+    // ... (rest of your game loop code)
+    requestAnimationFrame(gameLoop);
+}
     </script>
 <audio id="bg-music" src="Aeronom.mp3" loop ></audio>
 
