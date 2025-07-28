@@ -190,13 +190,16 @@
     let currentBg = backgrounds[0];
 
     // --- Music ---
-    let requestedMusicLevel = 1;
+    let selectedMusicIndex = Math.floor(Math.random() * ASSETS.music.length);
     let musicReady = false;
     music.volume = 0.4;
-    music.loop = false;
+    music.loop = true;
 
-    // --- Industrial Structures, Emission Sources, Plumes, Flares ---
-    let industrialStructures, emissionSources, plumes, flares, flareSpawnTimer;
+    // --- Emission Sources and Flares ---
+    let emissionSources = [];
+    let plumes = [];
+    let flares = [];
+    let flareSpawnTimer = 0;
 
     // --- Level 3 special objects ---
     let level3Flare, level3Plume;
@@ -234,24 +237,17 @@
     }
 
     // --- Music Handlers ---
-    function playMusicForLevel(lvl) {
-        requestedMusicLevel = lvl;
-        music.src = ASSETS.music[lvl-1];
+    function playRandomMusic() {
+        selectedMusicIndex = Math.floor(Math.random() * ASSETS.music.length);
+        music.src = ASSETS.music[selectedMusicIndex];
         music.currentTime = 0;
         music.play().catch(()=>{});
         musicReady = true;
     }
-    // When music ends, if we requested a higher level, switch music
+    // Loop the same song
     music.onended = function() {
-        if (gameState === GameState.Playing && level < 3 && requestedMusicLevel > level) {
-            // Level up music
-            playMusicForLevel(requestedMusicLevel);
-        } else if (gameState === GameState.Playing && level === 3) {
-            // Always loop level 3 music
-            playMusicForLevel(3);
-        } else {
-            playMusicForLevel(level);
-        }
+        music.currentTime = 0;
+        music.play().catch(()=>{});
     };
 
     // --- Input ---
@@ -269,11 +265,11 @@
     // --- Music start policy ---
     window.addEventListener("load", function () {
         // Try autoplay
-        playMusicForLevel(1);
+        playRandomMusic();
         music.play().catch(() => {
             // Autoplay likely blocked — wait for first user interaction
             const resumeMusic = () => {
-                playMusicForLevel(level);
+                playRandomMusic();
                 document.removeEventListener("click", resumeMusic);
             };
             document.addEventListener("click", resumeMusic);
@@ -289,12 +285,40 @@
         fadeDiv.style.opacity = 0;
         fadeDiv.style.display = 'none';
         startLevel(level);
-        playMusicForLevel(level);
         // No transition at first
         gameState = GameState.Playing;
         droneControlEnabled = true;
         statusElement.textContent = "MONITORING";
         updateUI();
+    }
+
+    function randomInRange(a, b) { return a + Math.random() * (b - a); }
+
+    function generateEmissionSources(num) {
+        // Spread across width, within center third vertically
+        let sources = [];
+        for (let i = 0; i < num; i++) {
+            let x = Math.round(140 + (i + Math.random()*0.6) * ((canvas.width-280)/num));
+            let y = Math.round(randomInRange(canvas.height/3, canvas.height*2/3));
+            sources.push({
+                x: x,
+                y: y,
+                lastEmission: Math.random() * 400,
+                emissionRate: 300 + Math.random() * 200
+            });
+        }
+        return sources;
+    }
+    function generateFlarePoints(num) {
+        // Place flares at emission source locations
+        let points = [];
+        for (let i = 0; i < num; i++) {
+            points.push({
+                x: emissionSources[i].x,
+                y: emissionSources[i].y
+            });
+        }
+        return points;
     }
 
     function startLevel(lvl) {
@@ -308,24 +332,9 @@
         drone.pulseTime = 0; drone.rotorSpin = 0;
         // Level backgrounds
         currentBg = backgrounds[lvl-1];
-        // Level structures and emission
+        // Generate emission sources and flare points
         if (lvl === 1 || lvl === 2) {
-            industrialStructures = [
-                {x: 150, y: 400, w: 80, h: 150, type: 'distillation', flareX: 190, flareY: 400},
-                {x: 280, y: 460, w: 60, h: 90, type: 'tank', flareX: 0, flareY: 0},
-                {x: 380, y: 420, w: 100, h: 130, type: 'reactor', flareX: 430, flareY: 420},
-                {x: 520, y: 450, w: 70, h: 100, type: 'tank', flareX: 0, flareY: 0},
-                {x: 620, y: 380, w: 50, h: 170, type: 'tower', flareX: 645, flareY: 380}
-            ];
-            emissionSources = [];
-            for (let i = 0; i < 4; i++) {
-                emissionSources.push({
-                    x: 200 + i * 150,
-                    y: 420 + Math.random() * 80,
-                    lastEmission: Math.random() * 400,
-                    emissionRate: 300 + Math.random() * 200
-                });
-            }
+            emissionSources = generateEmissionSources(4);
         } else if (lvl === 3) {
             // Level 3: single central flare, plume is dynamic
             level3Flare = {
@@ -339,8 +348,8 @@
                 radius: 40,
                 opacity: 0.8,
                 drift: 0,
-                vx: 1.2, vy: -0.2, // Initial direction
-                t: 0 // time for dynamic movement
+                vx: 1.2, vy: -0.2,
+                t: 0
             };
         }
         updateUI();
@@ -475,12 +484,12 @@
 
     // --- Flare Logic (Level 1/2) ---
     function spawnFlare() {
-        const flareStructures = industrialStructures.filter(s => s.flareX > 0);
-        if (flareStructures.length > 0) {
-            const structure = flareStructures[Math.floor(Math.random() * flareStructures.length)];
+        // Pick a random emission source as a flare location
+        if (emissionSources.length > 0) {
+            const source = emissionSources[Math.floor(Math.random() * emissionSources.length)];
             flares.push({
-                x: structure.flareX,
-                y: structure.flareY,
+                x: source.x,
+                y: source.y,
                 warning: 90,
                 burning: 0,
                 maxBurning: 100,
@@ -523,21 +532,19 @@
         level3Plume.y = 320 + Math.sin(t * 2.7) * 60 + Math.cos(t * 0.7) * 10;
         level3Plume.radius = 40 + 18 * Math.abs(Math.sin(t * 1.4));
         level3Plume.opacity = 0.8 + 0.15 * Math.sin(t * 1.2);
+
+        // Flare hitbox
+        if (level === 3 && level3Flare && droneControlEnabled) {
+            const flareHitboxRadius = 55;
+            const dist = Math.sqrt(
+                (drone.x - level3Flare.x) ** 2 +
+                (drone.y - (level3Flare.y - level3Flare.flameLength * 0.6)) ** 2
+            );
+            if (dist < flareHitboxRadius) {
+                loseLife();
+            }
+        }
     }
-        if (
-    level === 3 && level3Flare && droneControlEnabled
-) {
-    // The flare is at (level3Flare.x, level3Flare.y), baseW for width
-    // Let’s consider a circular hitbox around the flare flame center
-    const flareHitboxRadius = 55; // adjust as needed for fairness
-    const dist = Math.sqrt(
-        (drone.x - level3Flare.x) ** 2 +
-        (drone.y - (level3Flare.y - level3Flare.flameLength * 0.6)) ** 2
-    );
-    if (dist < flareHitboxRadius) {
-        loseLife();
-    }
-}
 
     // --- Drawing ---
     function drawBackground() {
@@ -548,31 +555,8 @@
             ctx.fillStyle = "#202040";
             ctx.fillRect(0,0,canvas.width,canvas.height);
         }
+        // Draw emission source markers
         if (level < 3) {
-            // Draw structures
-            industrialStructures.forEach(struct => {
-                ctx.fillStyle = struct.type === 'tank' ? '#4a4a4a' : '#3a3a3a';
-                if (struct.type === 'tank') {
-                    ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
-                    ctx.fillStyle = '#5a5a5a';
-                    ctx.fillRect(struct.x, struct.y, struct.w, 8);
-                    ctx.fillRect(struct.x, struct.y + struct.h - 8, struct.w, 8);
-                } else {
-                    ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
-                }
-                ctx.fillStyle = '#2a2a2a';
-                if (struct.type === 'distillation') {
-                    for (let i = 0; i < 8; i++)
-                        ctx.fillRect(struct.x + 5, struct.y + 20 + i * 15, struct.w - 10, 3);
-                } else if (struct.type === 'reactor') {
-                    ctx.fillRect(struct.x + 10, struct.y + 10, struct.w - 20, struct.h - 20);
-                    ctx.fillStyle = '#1a1a1a';
-                    ctx.fillRect(struct.x + 20, struct.y + 20, struct.w - 40, struct.h - 40);
-                }
-                ctx.fillStyle = '#555555';
-                ctx.fillRect(struct.x - 5, struct.y + struct.h/2, struct.w + 10, 4);
-            });
-            // Emission markers
             ctx.fillStyle = '#666666';
             emissionSources.forEach(source => {
                 ctx.fillRect(source.x - 2, source.y - 6, 4, 6);
@@ -580,18 +564,6 @@
                 ctx.fillRect(source.x - 1, source.y - 4, 2, 4);
                 ctx.fillStyle = '#666666';
             });
-        } else {
-            // Level 3: Big central flare
-            // Flare base
-            ctx.save();
-            ctx.fillStyle = "#2b2b2b";
-            ctx.fillRect(level3Flare.x-40, level3Flare.y+level3Flare.baseH-10, 80, 24);
-            ctx.fillStyle = "#4a4a4a";
-            ctx.fillRect(level3Flare.x-30, level3Flare.y+level3Flare.baseH-18, 60, 14);
-            // Main stack
-            ctx.fillStyle = "#787878";
-            ctx.fillRect(level3Flare.x-20, level3Flare.y, 40, level3Flare.baseH);
-            ctx.restore();
         }
     }
 
@@ -600,18 +572,20 @@
             plumes.forEach(plume => {
                 ctx.save();
                 ctx.globalAlpha = plume.opacity;
-                const gradient = ctx.createRadialGradient(
-                    plume.x, plume.y, 0,
-                    plume.x + plume.drift/2, plume.y, plume.radius
-                );
-                gradient.addColorStop(0, '#888888');
-                gradient.addColorStop(0.4, '#666666');
-                gradient.addColorStop(0.8, '#444444');
-                gradient.addColorStop(1, 'rgba(68, 68, 68, 0)');
-                ctx.fillStyle = gradient;
-                ctx.beginPath();
-                ctx.ellipse(plume.x + plume.drift/3, plume.y, plume.radius * 1.5, plume.radius * 0.8, 0, 0, Math.PI * 2);
-                ctx.fill();
+                const grayColors = ['#b0b0b0', '#868686', '#666666', '#444444'];
+                for (let r = 0; r < 4; r++) {
+                    ctx.fillStyle = grayColors[r];
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        plume.x + plume.drift/3,
+                        plume.y,
+                        (plume.radius * 1.5) * (1 - r*0.18),
+                        (plume.radius * 0.8) * (1 - r*0.18),
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+                // Pixelate edge dots
                 for (let i = 0; i < 6; i++) {
                     const angle = (i / 6) * Math.PI * 2;
                     const distance = plume.radius * (0.8 + Math.random() * 0.4);
@@ -627,18 +601,19 @@
             const plume = level3Plume;
             ctx.save();
             ctx.globalAlpha = plume.opacity;
-            const gradient = ctx.createRadialGradient(
-                plume.x, plume.y, 0,
-                plume.x, plume.y, plume.radius
-            );
-            gradient.addColorStop(0, '#bbbbbb');
-            gradient.addColorStop(0.4, '#bbbbbb');
-            gradient.addColorStop(0.8, '#888888');
-            gradient.addColorStop(1, 'rgba(136,136,136,0)');
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.ellipse(plume.x, plume.y, plume.radius * 2.1, plume.radius * 1.2, 0, 0, Math.PI * 2);
-            ctx.fill();
+            const grayColors = ['#bbbbbb', '#bbbbbb', '#888888', '#444444'];
+            for (let r = 0; r < 4; r++) {
+                ctx.fillStyle = grayColors[r];
+                ctx.beginPath();
+                ctx.ellipse(
+                    plume.x,
+                    plume.y,
+                    (plume.radius * 2.1) * (1 - r*0.17),
+                    (plume.radius * 1.2) * (1 - r*0.17),
+                    0, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
             for (let i = 0; i < 8; i++) {
                 const angle = (i / 8) * Math.PI * 2;
                 const distance = plume.radius * (1 + Math.random() * 0.7);
@@ -651,6 +626,44 @@
         }
     }
 
+    function drawPixelFlame(ctx, x, y, baseLen, intensity, style = 'normal') {
+        // Draws a layered pixel-art flame, with flicker, palette, and jaggies
+        const palettes = [
+            ['#fffbe0', '#ffd700', '#ffb347', '#ff6600', '#a52a2a'],
+            ['#ffffcc', '#ffe066', '#ffb347', '#ff6600', '#d2691e'],
+            ['#fffbe0', '#ffd700', '#ffb347', '#ff6600', '#ff3300']
+        ];
+        const palette = palettes[Math.floor(Math.random()*palettes.length)];
+        let len = baseLen + Math.round(Math.random()*intensity-0.5*intensity);
+        let w = 13 + Math.round(Math.random()*4);
+        // Fire body
+        for (let layer = 0; layer < 5; layer++) {
+            ctx.save();
+            ctx.globalAlpha = 0.85 - 0.14*layer;
+            ctx.fillStyle = palette[layer];
+            let lx = x;
+            let ly = y - layer*len*0.22 + Math.round(Math.sin(gameTime*0.2+layer)*2);
+            let lw = w - layer*2;
+            let lh = len - layer*10 + Math.round(Math.random()*2);
+            // jaggies
+            for (let j = 0; j < 3+layer; j++) {
+                let ox = Math.round((Math.random()-0.5)*lw*0.25);
+                let oy = Math.round((Math.random()-0.5)*lh*0.15);
+                ctx.fillRect(lx - lw/2 + ox, ly - lh/2 + oy, lw, lh);
+            }
+            ctx.restore();
+        }
+        // Edge sparkles
+        for (let s=0; s<6; s++) {
+            let sx = x + (Math.random()-0.5)*w*0.8;
+            let sy = y - baseLen*0.6 + Math.random()*10;
+            ctx.globalAlpha = 0.7;
+            ctx.fillStyle = "#fffbe0";
+            ctx.fillRect(sx, sy, 2, 2);
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
     function drawFlares() {
         if (level < 3) {
             flares.forEach(flare => {
@@ -658,36 +671,12 @@
                     const pulse = Math.sin(gameTime * 0.4) * 0.5 + 0.5;
                     ctx.fillStyle = `rgba(255, 50, 50, ${pulse * 0.8})`;
                     ctx.font = "bold 14px Courier New";
-                    ctx.fillText("⚠", flare.x - 6, flare.y - 10);
+                    ctx.fillText("⚠", flare.x - 6, flare.y - 18);
                 } else if (flare.burning > 0) {
+                    // Pixelated base
                     ctx.fillStyle = "#2b2b2b";
-                    ctx.fillRect(flare.x - 3, flare.y - 2, 6, 4);
-                    const flameColors = ['#ffcc00', '#ff9900', '#ff6600', '#ff3300'];
-                    const segments = 4;
-                    const flameLength = flare.flameLength;
-                    for (let i = 0; i < segments; i++) {
-                        const segmentLength = (flameLength / segments) * (segments - i) / segments;
-                        const segmentHeight = 8 - i * 1.5;
-                        const offset = Math.sin((gameTime + i * 10) * 0.3) * 2;
-                        ctx.fillStyle = flameColors[i];
-                        ctx.beginPath();
-                        ctx.ellipse(
-                            flare.x + 4 + i * 6 + offset,
-                            flare.y,
-                            segmentLength,
-                            segmentHeight,
-                            0,
-                            0,
-                            Math.PI * 2
-                        );
-                        ctx.fill();
-                        for (let j = 0; j < 2; j++) {
-                            const sparkX = flare.x + 6 + i * 6 + Math.random() * 4;
-                            const sparkY = flare.y + (Math.random() - 0.5) * segmentHeight;
-                            ctx.fillStyle = "#ffffcc";
-                            ctx.fillRect(sparkX, sparkY, 1.5, 1.5);
-                        }
-                    }
+                    ctx.fillRect(flare.x-3, flare.y-2, 6, 4);
+                    drawPixelFlame(ctx, flare.x, flare.y-11, flare.flameLength, 20);
                     if (Math.random() < 0.03) {
                         ctx.font = "bold 12px Courier New";
                         ctx.fillStyle = "#ffff33";
@@ -703,26 +692,7 @@
             // Flare nozzle
             ctx.fillStyle = "#343434";
             ctx.fillRect(-12, -8, 24, 16);
-            // Draw big layered flame
-            const flameColors = ['#ffe066', '#ffb347', '#ff6600', '#ff3300', '#c70000'];
-            let flameLen = flare.flameLength;
-            for (let i = 0; i < flameColors.length; i++) {
-                ctx.save();
-                ctx.globalAlpha = 1 - i * 0.13;
-                ctx.fillStyle = flameColors[i];
-                ctx.beginPath();
-                ctx.ellipse(
-                    0,
-                    -flameLen * 0.28 - i * 12 + Math.sin(gameTime * 0.2 + i) * 4,
-                    38 - i*5,
-                    flameLen - i*16 + Math.sin(gameTime * 0.25 + i) * 8,
-                    0,
-                    0,
-                    Math.PI * 2
-                );
-                ctx.fill();
-                ctx.restore();
-            }
+            drawPixelFlame(ctx, 0, -40, flare.flameLength, 40);
             ctx.restore();
         }
     }
@@ -783,8 +753,6 @@
             fadeToBlack(() => {
                 // Start next level
                 startLevel(level + 1);
-                // Music only changes after current ends
-                requestedMusicLevel = level + 1;
                 updateUI();
                 droneControlEnabled = true;
                 statusElement.textContent = "MONITORING";
@@ -813,12 +781,6 @@
             if (levelTransition) handleLevelTransition();
             updateUI();
             checkForLevelUp();
-        } else if (gameState === GameState.SplashStart) {
-            // Only splash is visible
-        } else if (gameState === GameState.GameOver) {
-            // Only splash is visible
-        } else if (gameState === GameState.Victory) {
-            // Only splash is visible
         }
         requestAnimationFrame(gameLoop);
     }
