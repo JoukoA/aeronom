@@ -516,7 +516,7 @@
         if (!level3Flare || !level3Plume) return;
         // Flare is always burning
         // Plume: move and change direction/height
-        level3Plume.t += 0.028;
+        level3Plume.t += 0.008;
         const t = level3Plume.t;
         // Dynamic wind, direction, and plume center
         level3Plume.x = 400 + Math.sin(t * 0.8) * 180 + Math.sin(t * 0.1) * 20;
@@ -524,6 +524,20 @@
         level3Plume.radius = 40 + 18 * Math.abs(Math.sin(t * 1.4));
         level3Plume.opacity = 0.8 + 0.15 * Math.sin(t * 1.2);
     }
+        if (
+    level === 3 && level3Flare && droneControlEnabled
+) {
+    // The flare is at (level3Flare.x, level3Flare.y), baseW for width
+    // Let’s consider a circular hitbox around the flare flame center
+    const flareHitboxRadius = 55; // adjust as needed for fairness
+    const dist = Math.sqrt(
+        (drone.x - level3Flare.x) ** 2 +
+        (drone.y - (level3Flare.y - level3Flare.flameLength * 0.6)) ** 2
+    );
+    if (dist < flareHitboxRadius) {
+        loseLife();
+    }
+}
 
     // --- Drawing ---
     function drawBackground() {
