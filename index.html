@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=800, initial-scale=1.0">
     <title>AERONOM</title>
     <style>
         body {
@@ -34,10 +34,15 @@
         #ui {
             position: absolute;
             top: 10px;
-            left: 10px;
+            left: 0;
+            width: 100%;
+            text-align: center;
             color: #00ff00;
-            font-size: 16px;
+            font-size: 18px;
             text-shadow: 2px 2px 0px #000000;
+            z-index: 2;
+            pointer-events: none;
+            user-select: none;
         }
 
         #instructions {
@@ -47,6 +52,42 @@
             color: #00ff00;
             font-size: 12px;
             text-shadow: 1px 1px 0px #000000;
+            z-index: 2;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .splash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 800px;
+            height: 600px;
+            background: rgba(0,0,0,0.85);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: opacity 0.4s;
+        }
+
+        .splash img {
+            max-width: 90%;
+            max-height: 90%;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .fade {
+            pointer-events: none;
+            position: absolute;
+            left: 0; top: 0;
+            width: 800px; height: 600px;
+            z-index: 9;
+            background: #000;
+            opacity: 0;
+            transition: opacity 1s;
         }
     </style>
 </head>
@@ -54,188 +95,279 @@
     <div id="gameContainer">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         <div id="ui">
-            <div>SCORE: <span id="score">0</span></div>
-            <div>STATUS: <span id="status">MONITORING</span></div>
+            <span id="scorebox">SCORE: <span id="score">0</span></span>
+            <span style="margin-left:32px;">LIVES: <span id="lives">3</span></span>
+            <span style="margin-left:32px;">LEVEL: <span id="level">1</span></span>
+            <span style="margin-left:32px;">STATUS: <span id="status">MONITORING</span></span>
         </div>
         <div id="instructions">
-            Arrow Keys: Move Drone with arrow keys | Avoid Flares | Collect Emission Data | Click to enable Audio<br>
+            Arrow Keys: Move Drone | Avoid Flares | Collect Emission Data | Click to enable Audio<br>
         </div>
+        <div id="splash" class="splash" style="display:none;">
+            <img id="splash-img" src="" alt="Splash">
+        </div>
+        <div id="fade" class="fade"></div>
     </div>
-
-    <audio id="bg-music" src="Aeronom.mp3" loop></audio>
+    <audio id="bg-music" src="" loop></audio>
 
     <script>
-        // Level mechanics
-        let level = 1;
-        const LEVEL_DURATION = 60 * 60; // 60 seconds * 60fps
-        let levelChanged = false;
+    // --- Asset paths ---
+    const ASSETS = {
+        splash: {
+            start: 'splash_start.png',
+            gameover: 'splash_gameover.png',
+            victory: 'splash_victory.png'
+        },
+        bg: [
+            'refinery_background.png',
+            'level2_background.png',
+            'level3_background.png'
+        ],
+        music: [
+            'level1.mp3',
+            'level2.mp3',
+            'level3.mp3'
+        ]
+    };
 
-        // Preload background images
-        const bgImg = new Image();
-        const bgImg2 = new Image();
-        bgImg.src = 'refinery_background.png';
-        bgImg2.src = 'level2_background.png';
+    // --- UI Elements ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    const scoreElement = document.getElementById('score');
+    const livesElement = document.getElementById('lives');
+    const levelElement = document.getElementById('level');
+    const statusElement = document.getElementById('status');
+    const splashDiv = document.getElementById('splash');
+    const splashImg = document.getElementById('splash-img');
+    const fadeDiv = document.getElementById('fade');
+    const music = document.getElementById('bg-music');
 
-        let backgroundImage = null;
-        bgImg.onload = function() {
-            backgroundImage = bgImg;
-        };
-        bgImg.onerror = function() {
-            console.log("No custom background found, using generated background");
-        };
+    // --- Game States ---
+    const GameState = {
+        SplashStart: 'SplashStart',
+        Playing: 'Playing',
+        Respawning: 'Respawning',
+        LevelTransition: 'LevelTransition',
+        GameOver: 'GameOver',
+        Victory: 'Victory'
+    };
+    let gameState = GameState.SplashStart;
 
-        // Game state
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
-        const statusElement = document.getElementById('status');
-        ctx.imageSmoothingEnabled = false;
+    // --- Game Variables ---
+    let level = 1;
+    let lives = 3;
+    let score = 0;
+    let gameTime = 0;
+    let keys = {};
+    let windDirection = 1; // 1 for right, -1 for left
+    let windSpeed = 0.5;
+    let droneRespawnTimer = 0;
+    let droneControlEnabled = false;
+    let levelTransition = false;
+    let levelTransitionFade = 0;
+    let victory = false;
 
-        let gameTime = 0;
-        let score = 0;
-        let keys = {};
-        let windDirection = 1; // 1 for right, -1 for left
-        let windSpeed = 0.5;
+    // --- Drone ---
+    const DRONE_START = {x: 100, y: 300};
+    const drone = {
+        x: DRONE_START.x,
+        y: DRONE_START.y,
+        targetX: DRONE_START.x,
+        targetY: DRONE_START.y,
+        width: 32,
+        height: 24,
+        inPlume: false,
+        pulseTime: 0,
+        rotorSpin: 0
+    };
 
-        // Drone properties
-        const drone = {
-            x: 100,
-            y: 300,
-            targetX: 100,
-            targetY: 300,
-            width: 32,
-            height: 24,
-            inPlume: false,
-            pulseTime: 0,
-            rotorSpin: 0
-        };
+    // --- Backgrounds ---
+    const backgrounds = [new Image(), new Image(), new Image()];
+    backgrounds[0].src = ASSETS.bg[0];
+    backgrounds[1].src = ASSETS.bg[1];
+    backgrounds[2].src = ASSETS.bg[2];
+    let currentBg = backgrounds[0];
 
-        // Industrial structures with flare positions
-        const industrialStructures = [
-            {x: 150, y: 400, w: 80, h: 150, type: 'distillation', flareX: 190, flareY: 400},
-            {x: 280, y: 460, w: 60, h: 90, type: 'tank', flareX: 0, flareY: 0}, // No flare
-            {x: 380, y: 420, w: 100, h: 130, type: 'reactor', flareX: 430, flareY: 420},
-            {x: 520, y: 450, w: 70, h: 100, type: 'tank', flareX: 0, flareY: 0}, // No flare
-            {x: 620, y: 380, w: 50, h: 170, type: 'tower', flareX: 645, flareY: 380}
-        ];
+    // --- Music ---
+    let requestedMusicLevel = 1;
+    let musicReady = false;
+    music.volume = 0.4;
+    music.loop = false;
 
-        // Emission sources (fewer sources)
-        const emissionSources = [];
-        for (let i = 0; i < 4; i++) {
-            emissionSources.push({
-                x: 200 + i * 150,
-                y: 420 + Math.random() * 80,
-                lastEmission: Math.random() * 400,
-                emissionRate: 300 + Math.random() * 200 // Longer intervals
-            });
+    // --- Industrial Structures, Emission Sources, Plumes, Flares ---
+    let industrialStructures, emissionSources, plumes, flares, flareSpawnTimer;
+
+    // --- Level 3 special objects ---
+    let level3Flare, level3Plume;
+
+    // --- Splash Helper ---
+    function showSplash(type) {
+        let imgSrc = '';
+        if (type === GameState.SplashStart) imgSrc = ASSETS.splash.start;
+        else if (type === GameState.GameOver) imgSrc = ASSETS.splash.gameover;
+        else if (type === GameState.Victory) imgSrc = ASSETS.splash.victory;
+        splashImg.src = imgSrc;
+        splashDiv.style.opacity = 1;
+        splashDiv.style.display = 'flex';
+        splashDiv.style.pointerEvents = 'auto';
+    }
+    function hideSplash() {
+        splashDiv.style.opacity = 0;
+        splashDiv.style.pointerEvents = 'none';
+        setTimeout(() => { splashDiv.style.display = 'none'; }, 400);
+    }
+
+    // --- Fade Helper ---
+    function fadeToBlack(cb) {
+        fadeDiv.style.opacity = 0;
+        fadeDiv.style.display = 'block';
+        setTimeout(()=>{fadeDiv.style.transition='opacity 1s';fadeDiv.style.opacity=1;}, 20);
+        setTimeout(()=>{
+            fadeDiv.style.transition='opacity 0.6s';
+            cb && cb();
+            setTimeout(()=>{
+                fadeDiv.style.opacity=0;
+                setTimeout(()=>{fadeDiv.style.display='none';}, 600);
+            }, 1200);
+        }, 1200);
+    }
+
+    // --- Music Handlers ---
+    function playMusicForLevel(lvl) {
+        requestedMusicLevel = lvl;
+        music.src = ASSETS.music[lvl-1];
+        music.currentTime = 0;
+        music.play().catch(()=>{});
+        musicReady = true;
+    }
+    // When music ends, if we requested a higher level, switch music
+    music.onended = function() {
+        if (gameState === GameState.Playing && level < 3 && requestedMusicLevel > level) {
+            // Level up music
+            playMusicForLevel(requestedMusicLevel);
+        } else if (gameState === GameState.Playing && level === 3) {
+            // Always loop level 3 music
+            playMusicForLevel(3);
+        } else {
+            playMusicForLevel(level);
         }
+    };
 
-        // Emission plumes (max 2)
-        let plumes = [];
+    // --- Input ---
+    document.addEventListener('keydown', (e) => { keys[e.key] = true; });
+    document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
-        // Flares
-        let flares = [];
-        let flareSpawnTimer = 0;
+    // --- Splash click handler ---
+    splashDiv.addEventListener('click', function() {
+        if (gameState === GameState.SplashStart || gameState === GameState.GameOver || gameState === GameState.Victory) {
+            hideSplash();
+            setTimeout(startGame, 200);
+        }
+    });
 
-        // Input handling
-        document.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
+    // --- Music start policy ---
+    window.addEventListener("load", function () {
+        // Try autoplay
+        playMusicForLevel(1);
+        music.play().catch(() => {
+            // Autoplay likely blocked — wait for first user interaction
+            const resumeMusic = () => {
+                playMusicForLevel(level);
+                document.removeEventListener("click", resumeMusic);
+            };
+            document.addEventListener("click", resumeMusic);
         });
+    });
 
-        document.addEventListener('keyup', (e) => {
-            keys[e.key] = false;
-        });
+    // --- Game Start/Reset ---
+    function startGame() {
+        level = 1;
+        lives = 3;
+        score = 0;
+        gameTime = 0;
+        fadeDiv.style.opacity = 0;
+        fadeDiv.style.display = 'none';
+        startLevel(level);
+        playMusicForLevel(level);
+        // No transition at first
+        gameState = GameState.Playing;
+        droneControlEnabled = true;
+        statusElement.textContent = "MONITORING";
+        updateUI();
+    }
 
-        // Create pixel-perfect drone sprite
-        function drawPixelDrone() {
-            ctx.save();
-            ctx.translate(drone.x, drone.y);
-
-            // Pulse green when in plume
-            if (drone.inPlume) {
-                const pulse = Math.sin(drone.pulseTime) * 0.5 + 0.5;
-                ctx.shadowColor = '#00ff00';
-                ctx.shadowBlur = 15 * pulse;
-            }
-
-            // Drone body (detailed pixel art)
-            ctx.fillStyle = '#4a4a4a';
-            ctx.fillRect(-12, -6, 24, 12);
-
-            ctx.fillStyle = '#666666';
-            ctx.fillRect(-10, -4, 20, 8);
-
-            // Central camera/sensor
-            ctx.fillStyle = '#2a2a2a';
-            ctx.fillRect(-3, -2, 6, 4);
-            ctx.fillStyle = '#ff0000';
-            ctx.fillRect(-1, -1, 2, 2);
-
-            // Landing gear
-            ctx.fillStyle = '#333333';
-            ctx.fillRect(-8, 6, 2, 4);
-            ctx.fillRect(6, 6, 2, 4);
-
-            // Rotor arms
-            ctx.fillStyle = '#555555';
-            ctx.fillRect(-16, -8, 8, 2);
-            ctx.fillRect(8, -8, 8, 2);
-            ctx.fillRect(-16, 6, 8, 2);
-            ctx.fillRect(8, 6, 8, 2);
-
-            // Rotors with spinning effect
-            const rotorPositions = [
-                {x: -12, y: -7}, {x: 12, y: -7},
-                {x: -12, y: 7}, {x: 12, y: 7}
+    function startLevel(lvl) {
+        level = lvl;
+        gameTime = 0;
+        plumes = [];
+        flares = [];
+        flareSpawnTimer = 0;
+        drone.x = DRONE_START.x; drone.y = DRONE_START.y;
+        drone.targetX = DRONE_START.x; drone.targetY = DRONE_START.y;
+        drone.pulseTime = 0; drone.rotorSpin = 0;
+        // Level backgrounds
+        currentBg = backgrounds[lvl-1];
+        // Level structures and emission
+        if (lvl === 1 || lvl === 2) {
+            industrialStructures = [
+                {x: 150, y: 400, w: 80, h: 150, type: 'distillation', flareX: 190, flareY: 400},
+                {x: 280, y: 460, w: 60, h: 90, type: 'tank', flareX: 0, flareY: 0},
+                {x: 380, y: 420, w: 100, h: 130, type: 'reactor', flareX: 430, flareY: 420},
+                {x: 520, y: 450, w: 70, h: 100, type: 'tank', flareX: 0, flareY: 0},
+                {x: 620, y: 380, w: 50, h: 170, type: 'tower', flareX: 645, flareY: 380}
             ];
-
-            drone.rotorSpin += 0.8;
-
-            rotorPositions.forEach((pos, i) => {
-                ctx.save();
-                ctx.translate(pos.x, pos.y);
-
-                ctx.fillStyle = '#2a2a2a';
-                ctx.fillRect(-2, -2, 4, 4);
-
-                ctx.strokeStyle = 'rgba(85, 85, 85, 0.6)';
-                ctx.lineWidth = 2;
-                const angle = drone.rotorSpin + (i * Math.PI / 2);
-
-                for (let j = 0; j < 4; j++) {
-                    ctx.save();
-                    ctx.rotate(angle + (j * Math.PI / 2));
-                    ctx.beginPath();
-                    ctx.moveTo(-6, 0);
-                    ctx.lineTo(6, 0);
-                    ctx.stroke();
-                    ctx.restore();
-                }
-
-                ctx.restore();
-            });
-
-            ctx.restore();
+            emissionSources = [];
+            for (let i = 0; i < 4; i++) {
+                emissionSources.push({
+                    x: 200 + i * 150,
+                    y: 420 + Math.random() * 80,
+                    lastEmission: Math.random() * 400,
+                    emissionRate: 300 + Math.random() * 200
+                });
+            }
+        } else if (lvl === 3) {
+            // Level 3: single central flare, plume is dynamic
+            level3Flare = {
+                x: 400, y: 350,
+                baseW: 80, baseH: 100,
+                flameLength: 100,
+                burning: true
+            };
+            level3Plume = {
+                x: 400, y: 320,
+                radius: 40,
+                opacity: 0.8,
+                drift: 0,
+                vx: 1.2, vy: -0.2, // Initial direction
+                t: 0 // time for dynamic movement
+            };
         }
+        updateUI();
+    }
 
-        // Drone movement
-        function updateDrone() {
-            const speed = 2.5;
-            const smoothing = 0.12;
+    // --- UI Helper ---
+    function updateUI() {
+        scoreElement.textContent = score;
+        livesElement.textContent = lives;
+        levelElement.textContent = level;
+    }
 
-            if (keys['ArrowLeft']) drone.targetX -= speed;
-            if (keys['ArrowRight']) drone.targetX += speed;
-            if (keys['ArrowUp']) drone.targetY -= speed;
-            if (keys['ArrowDown']) drone.targetY += speed;
-
-            drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
-            drone.targetY = Math.max(20, Math.min(canvas.height - 80, drone.targetY));
-
-            drone.x += (drone.targetX - drone.x) * smoothing;
-            drone.y += (drone.targetY - drone.y) * smoothing;
-
-            // Check if in plume
-            drone.inPlume = false;
+    // --- Drone Movement ---
+    function updateDrone() {
+        if (!droneControlEnabled) return;
+        const speed = 2.5;
+        const smoothing = 0.12;
+        if (keys['ArrowLeft']) drone.targetX -= speed;
+        if (keys['ArrowRight']) drone.targetX += speed;
+        if (keys['ArrowUp']) drone.targetY -= speed;
+        if (keys['ArrowDown']) drone.targetY += speed;
+        drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
+        drone.targetY = Math.max(20, Math.min(canvas.height - 80, drone.targetY));
+        drone.x += (drone.targetX - drone.x) * smoothing;
+        drone.y += (drone.targetY - drone.y) * smoothing;
+        drone.inPlume = false;
+        if (level < 3) {
             for (let plume of plumes) {
                 const dist = Math.sqrt((drone.x - plume.x) ** 2 + (drone.y - plume.y) ** 2);
                 if (dist < plume.radius * 0.7) {
@@ -244,166 +376,216 @@
                     break;
                 }
             }
-
-            if (drone.inPlume) {
-                drone.pulseTime += 0.2;
+        } else if (level === 3 && level3Plume) {
+            const dist = Math.sqrt((drone.x - level3Plume.x) ** 2 + (drone.y - level3Plume.y) ** 2);
+            if (dist < level3Plume.radius * 0.7) {
+                drone.inPlume = true;
+                score += 1;
             }
         }
+        if (drone.inPlume) drone.pulseTime += 0.2;
+    }
 
-        // Update emissions (max 2 plumes)
-        function updateEmissions() {
-            // Change wind occasionally
-            if (Math.random() < 0.002) {
-                windDirection = Math.random() > 0.5 ? 1 : -1;
-                windSpeed = 0.3 + Math.random() * 0.4;
+    // --- Drone Drawing ---
+    function drawPixelDrone() {
+        ctx.save();
+        ctx.translate(drone.x, drone.y);
+        if (drone.inPlume) {
+            const pulse = Math.sin(drone.pulseTime) * 0.5 + 0.5;
+            ctx.shadowColor = '#00ff00';
+            ctx.shadowBlur = 15 * pulse;
+        }
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fillRect(-12, -6, 24, 12);
+        ctx.fillStyle = '#666666';
+        ctx.fillRect(-10, -4, 20, 8);
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(-3, -2, 6, 4);
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(-1, -1, 2, 2);
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(-8, 6, 2, 4);
+        ctx.fillRect(6, 6, 2, 4);
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(-16, -8, 8, 2);
+        ctx.fillRect(8, -8, 8, 2);
+        ctx.fillRect(-16, 6, 8, 2);
+        ctx.fillRect(8, 6, 8, 2);
+        // Rotors with spinning effect
+        const rotorPositions = [
+            {x: -12, y: -7}, {x: 12, y: -7},
+            {x: -12, y: 7}, {x: 12, y: 7}
+        ];
+        drone.rotorSpin += 0.8;
+        rotorPositions.forEach((pos, i) => {
+            ctx.save();
+            ctx.translate(pos.x, pos.y);
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(-2, -2, 4, 4);
+            ctx.strokeStyle = 'rgba(85, 85, 85, 0.6)';
+            ctx.lineWidth = 2;
+            const angle = drone.rotorSpin + (i * Math.PI / 2);
+            for (let j = 0; j < 4; j++) {
+                ctx.save();
+                ctx.rotate(angle + (j * Math.PI / 2));
+                ctx.beginPath();
+                ctx.moveTo(-6, 0);
+                ctx.lineTo(6, 0);
+                ctx.stroke();
+                ctx.restore();
             }
+            ctx.restore();
+        });
+        ctx.restore();
+    }
 
+    // --- Emission Logic (Level 1/2) ---
+    function updateEmissions() {
+        if (level >= 3) return;
+        if (Math.random() < 0.002) {
+            windDirection = Math.random() > 0.5 ? 1 : -1;
+            windSpeed = 0.3 + Math.random() * 0.4;
+        }
+        emissionSources.forEach(source => {
+            source.lastEmission++;
+            if (source.lastEmission > source.emissionRate && plumes.length < 2) {
+                plumes.push({
+                    x: source.x,
+                    y: source.y,
+                    startX: source.x,
+                    radius: 20,
+                    life: 400 + Math.random() * 100,
+                    maxLife: 400,
+                    opacity: 0.7,
+                    drift: 0
+                });
+                source.lastEmission = 0;
+                source.emissionRate = 400 + Math.random() * 300;
+            }
+        });
+        plumes = plumes.filter(plume => {
+            plume.life--;
+            plume.opacity = (plume.life / plume.maxLife) * 0.7;
+            plume.drift += windSpeed * windDirection;
+            plume.x = plume.startX + plume.drift;
+            plume.radius += 0.15;
+            return plume.life > 0;
+        });
+    }
+
+    // --- Flare Logic (Level 1/2) ---
+    function spawnFlare() {
+        const flareStructures = industrialStructures.filter(s => s.flareX > 0);
+        if (flareStructures.length > 0) {
+            const structure = flareStructures[Math.floor(Math.random() * flareStructures.length)];
+            flares.push({
+                x: structure.flareX,
+                y: structure.flareY,
+                warning: 90,
+                burning: 0,
+                maxBurning: 100,
+                flameLength: 0
+            });
+        }
+    }
+    function updateFlares() {
+        if (level >= 3) return;
+        flareSpawnTimer++;
+        if (flareSpawnTimer > 400 + Math.random() * 200) {
+            spawnFlare();
+            flareSpawnTimer = 0;
+        }
+        flares = flares.filter(flare => {
+            if (flare.warning > 0) {
+                flare.warning--;
+            } else if (flare.burning < flare.maxBurning) {
+                flare.burning++;
+                flare.flameLength = 40 + Math.sin(gameTime * 0.2) * 10 + Math.random() * 8;
+                // Check collision with drone
+                const dist = Math.sqrt((drone.x - flare.x) ** 2 + (drone.y - flare.y) ** 2);
+                if (dist < 35 && droneControlEnabled) {
+                    loseLife();
+                }
+            }
+            return flare.warning > 0 || flare.burning < flare.maxBurning;
+        });
+    }
+
+    // --- Level 3 Flare & Emission ---
+    function updateLevel3FlareAndPlume() {
+        if (!level3Flare || !level3Plume) return;
+        // Flare is always burning
+        // Plume: move and change direction/height
+        level3Plume.t += 0.028;
+        const t = level3Plume.t;
+        // Dynamic wind, direction, and plume center
+        level3Plume.x = 400 + Math.sin(t * 0.8) * 180 + Math.sin(t * 0.1) * 20;
+        level3Plume.y = 320 + Math.sin(t * 2.7) * 60 + Math.cos(t * 0.7) * 10;
+        level3Plume.radius = 40 + 18 * Math.abs(Math.sin(t * 1.4));
+        level3Plume.opacity = 0.8 + 0.15 * Math.sin(t * 1.2);
+    }
+
+    // --- Drawing ---
+    function drawBackground() {
+        if (currentBg && currentBg.complete)
+            ctx.drawImage(currentBg, 0, 0, canvas.width, canvas.height);
+        else {
+            // Default fallback BG
+            ctx.fillStyle = "#202040";
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+        }
+        if (level < 3) {
+            // Draw structures
+            industrialStructures.forEach(struct => {
+                ctx.fillStyle = struct.type === 'tank' ? '#4a4a4a' : '#3a3a3a';
+                if (struct.type === 'tank') {
+                    ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
+                    ctx.fillStyle = '#5a5a5a';
+                    ctx.fillRect(struct.x, struct.y, struct.w, 8);
+                    ctx.fillRect(struct.x, struct.y + struct.h - 8, struct.w, 8);
+                } else {
+                    ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
+                }
+                ctx.fillStyle = '#2a2a2a';
+                if (struct.type === 'distillation') {
+                    for (let i = 0; i < 8; i++)
+                        ctx.fillRect(struct.x + 5, struct.y + 20 + i * 15, struct.w - 10, 3);
+                } else if (struct.type === 'reactor') {
+                    ctx.fillRect(struct.x + 10, struct.y + 10, struct.w - 20, struct.h - 20);
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(struct.x + 20, struct.y + 20, struct.w - 40, struct.h - 40);
+                }
+                ctx.fillStyle = '#555555';
+                ctx.fillRect(struct.x - 5, struct.y + struct.h/2, struct.w + 10, 4);
+            });
+            // Emission markers
+            ctx.fillStyle = '#666666';
             emissionSources.forEach(source => {
-                source.lastEmission++;
-                if (source.lastEmission > source.emissionRate && plumes.length < 2) {
-                    // Spawn plume
-                    plumes.push({
-                        x: source.x,
-                        y: source.y,
-                        startX: source.x,
-                        radius: 20,
-                        life: 400 + Math.random() * 100,
-                        maxLife: 400,
-                        opacity: 0.7,
-                        drift: 0
-                    });
-
-                    source.lastEmission = 0;
-                    source.emissionRate = 400 + Math.random() * 300;
-                }
-            });
-
-            // Update existing plumes with wind drift
-            plumes = plumes.filter(plume => {
-                plume.life--;
-                plume.opacity = (plume.life / plume.maxLife) * 0.7;
-                plume.drift += windSpeed * windDirection;
-                plume.x = plume.startX + plume.drift;
-                plume.radius += 0.15; // Slow expansion
-                return plume.life > 0;
-            });
-        }
-
-        // Spawn flares on buildings
-        function spawnFlare() {
-            const flareStructures = industrialStructures.filter(s => s.flareX > 0);
-            if (flareStructures.length > 0) {
-                const structure = flareStructures[Math.floor(Math.random() * flareStructures.length)];
-                flares.push({
-                    x: structure.flareX,
-                    y: structure.flareY,
-                    warning: 90,
-                    burning: 0,
-                    maxBurning: 100,
-                    flameLength: 0
-                });
-            }
-        }
-
-        // Update flares
-        function updateFlares() {
-            flareSpawnTimer++;
-            if (flareSpawnTimer > 400 + Math.random() * 200) {
-                spawnFlare();
-                flareSpawnTimer = 0;
-            }
-
-            flares = flares.filter(flare => {
-                if (flare.warning > 0) {
-                    flare.warning--;
-                } else if (flare.burning < flare.maxBurning) {
-                    flare.burning++;
-                    flare.flameLength = 40 + Math.sin(gameTime * 0.2) * 10 + Math.random() * 8;
-
-                    // Check collision with drone
-                    const dist = Math.sqrt((drone.x - flare.x) ** 2 + (drone.y - flare.y) ** 2);
-                    if (dist < 35) {
-                        drone.x = drone.targetX = 100;
-                        drone.y = drone.targetY = 300;
-                        score = Math.max(0, score - 50);
-                        statusElement.textContent = "DRONE DAMAGED!";
-                        setTimeout(() => statusElement.textContent = "MONITORING", 3500);
-                    }
-                }
-
-                return flare.warning > 0 || flare.burning < flare.maxBurning;
-            });
-        }
-
-        // Draw background
-        function drawBackground() {
-            if (backgroundImage && backgroundImage.complete) {
-                ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
-            } else {
-                // Industrial site background
-                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-                gradient.addColorStop(0, '#4a6b8a');
-                gradient.addColorStop(0.7, '#2a4054');
-                gradient.addColorStop(1, '#1a2a3a');
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                // Ground
-                ctx.fillStyle = '#3a3a2a';
-                ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
-
-                // Draw industrial structures
-                industrialStructures.forEach(struct => {
-                    // Main structure
-                    ctx.fillStyle = struct.type === 'tank' ? '#4a4a4a' : '#3a3a3a';
-                    if (struct.type === 'tank') {
-                        // Draw cylindrical tank
-                        ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
-                        ctx.fillStyle = '#5a5a5a';
-                        ctx.fillRect(struct.x, struct.y, struct.w, 8); // Top
-                        ctx.fillRect(struct.x, struct.y + struct.h - 8, struct.w, 8); // Bottom
-                    } else {
-                        // Draw rectangular structure
-                        ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
-                    }
-
-                    // Add details
-                    ctx.fillStyle = '#2a2a2a';
-                    if (struct.type === 'distillation') {
-                        // Distillation column details
-                        for (let i = 0; i < 8; i++) {
-                            ctx.fillRect(struct.x + 5, struct.y + 20 + i * 15, struct.w - 10, 3);
-                        }
-                    } else if (struct.type === 'reactor') {
-                        // Reactor vessel details
-                        ctx.fillRect(struct.x + 10, struct.y + 10, struct.w - 20, struct.h - 20);
-                        ctx.fillStyle = '#1a1a1a';
-                        ctx.fillRect(struct.x + 20, struct.y + 20, struct.w - 40, struct.h - 40);
-                    }
-
-                    // Pipes
-                    ctx.fillStyle = '#555555';
-                    ctx.fillRect(struct.x - 5, struct.y + struct.h/2, struct.w + 10, 4);
-                });
-
-                // Draw emission source markers
+                ctx.fillRect(source.x - 2, source.y - 6, 4, 6);
+                ctx.fillStyle = '#888888';
+                ctx.fillRect(source.x - 1, source.y - 4, 2, 4);
                 ctx.fillStyle = '#666666';
-                emissionSources.forEach(source => {
-                    ctx.fillRect(source.x - 2, source.y - 6, 4, 6);
-                    ctx.fillStyle = '#888888';
-                    ctx.fillRect(source.x - 1, source.y - 4, 2, 4);
-                    ctx.fillStyle = '#666666';
-                });
-            }
+            });
+        } else {
+            // Level 3: Big central flare
+            // Flare base
+            ctx.save();
+            ctx.fillStyle = "#2b2b2b";
+            ctx.fillRect(level3Flare.x-40, level3Flare.y+level3Flare.baseH-10, 80, 24);
+            ctx.fillStyle = "#4a4a4a";
+            ctx.fillRect(level3Flare.x-30, level3Flare.y+level3Flare.baseH-18, 60, 14);
+            // Main stack
+            ctx.fillStyle = "#787878";
+            ctx.fillRect(level3Flare.x-20, level3Flare.y, 40, level3Flare.baseH);
+            ctx.restore();
         }
+    }
 
-        // Draw grey sideways emission plumes
-        function drawPlumes() {
+    function drawPlumes() {
+        if (level < 3) {
             plumes.forEach(plume => {
                 ctx.save();
                 ctx.globalAlpha = plume.opacity;
-
-                // Grey cloud with wind drift
                 const gradient = ctx.createRadialGradient(
                     plume.x, plume.y, 0,
                     plume.x + plume.drift/2, plume.y, plume.radius
@@ -412,53 +594,67 @@
                 gradient.addColorStop(0.4, '#666666');
                 gradient.addColorStop(0.8, '#444444');
                 gradient.addColorStop(1, 'rgba(68, 68, 68, 0)');
-
                 ctx.fillStyle = gradient;
-
-                // Draw elongated cloud shape
                 ctx.beginPath();
                 ctx.ellipse(plume.x + plume.drift/3, plume.y, plume.radius * 1.5, plume.radius * 0.8, 0, 0, Math.PI * 2);
                 ctx.fill();
-
-                // Add wispy edges
                 for (let i = 0; i < 6; i++) {
                     const angle = (i / 6) * Math.PI * 2;
                     const distance = plume.radius * (0.8 + Math.random() * 0.4);
                     const px = plume.x + plume.drift/3 + Math.cos(angle) * distance;
                     const py = plume.y + Math.sin(angle) * distance * 0.6;
-
                     ctx.fillStyle = `rgba(102, 102, 102, ${0.2 * plume.opacity})`;
                     ctx.fillRect(px - 1, py - 1, 2, 2);
                 }
-
                 ctx.restore();
             });
+        } else {
+            // Level 3: One big plume
+            const plume = level3Plume;
+            ctx.save();
+            ctx.globalAlpha = plume.opacity;
+            const gradient = ctx.createRadialGradient(
+                plume.x, plume.y, 0,
+                plume.x, plume.y, plume.radius
+            );
+            gradient.addColorStop(0, '#bbbbbb');
+            gradient.addColorStop(0.4, '#bbbbbb');
+            gradient.addColorStop(0.8, '#888888');
+            gradient.addColorStop(1, 'rgba(136,136,136,0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(plume.x, plume.y, plume.radius * 2.1, plume.radius * 1.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const distance = plume.radius * (1 + Math.random() * 0.7);
+                const px = plume.x + Math.cos(angle) * distance * 1.35;
+                const py = plume.y + Math.sin(angle) * distance * 0.9;
+                ctx.fillStyle = `rgba(180,180,180,${0.16 * plume.opacity})`;
+                ctx.fillRect(px-1,py-1,2,2);
+            }
+            ctx.restore();
         }
+    }
 
-        // Draw cartoon sideways flames
-        function drawFlares() {
+    function drawFlares() {
+        if (level < 3) {
             flares.forEach(flare => {
                 if (flare.warning > 0) {
-                    // Comic-style warning flash with symbol
                     const pulse = Math.sin(gameTime * 0.4) * 0.5 + 0.5;
                     ctx.fillStyle = `rgba(255, 50, 50, ${pulse * 0.8})`;
                     ctx.font = "bold 14px Courier New";
                     ctx.fillText("⚠", flare.x - 6, flare.y - 10);
                 } else if (flare.burning > 0) {
-                    // Nozzle base
                     ctx.fillStyle = "#2b2b2b";
                     ctx.fillRect(flare.x - 3, flare.y - 2, 6, 4);
-
-                    // Comic-style flame burst using layered ellipses
                     const flameColors = ['#ffcc00', '#ff9900', '#ff6600', '#ff3300'];
                     const segments = 4;
                     const flameLength = flare.flameLength;
-
                     for (let i = 0; i < segments; i++) {
                         const segmentLength = (flameLength / segments) * (segments - i) / segments;
                         const segmentHeight = 8 - i * 1.5;
                         const offset = Math.sin((gameTime + i * 10) * 0.3) * 2;
-
                         ctx.fillStyle = flameColors[i];
                         ctx.beginPath();
                         ctx.ellipse(
@@ -471,8 +667,6 @@
                             Math.PI * 2
                         );
                         ctx.fill();
-
-                        // Comic-style sparkles
                         for (let j = 0; j < 2; j++) {
                             const sparkX = flare.x + 6 + i * 6 + Math.random() * 4;
                             const sparkY = flare.y + (Math.random() - 0.5) * segmentHeight;
@@ -480,8 +674,6 @@
                             ctx.fillRect(sparkX, sparkY, 1.5, 1.5);
                         }
                     }
-
-                    // Occasionally show "WHOOSH!" text
                     if (Math.random() < 0.03) {
                         ctx.font = "bold 12px Courier New";
                         ctx.fillStyle = "#ffff33";
@@ -489,59 +681,141 @@
                     }
                 }
             });
-        }
-
-        // Main game loop
-        function gameLoop() {
-            gameTime++;
-
-            // Level change after 1 min (assuming 60fps)
-            if (level === 1 && gameTime > LEVEL_DURATION && !levelChanged) {
-                level = 2;
-                backgroundImage = bgImg2; // Switch background image
-
-                // Change song
-                const music = document.getElementById('bg-music');
-                music.pause();
-                music.src = 'level2.mp3';
-                music.load();
-                music.play().catch(()=>{});
-                levelChanged = true;
+        } else {
+            // Level 3: huge flame
+            const flare = level3Flare;
+            ctx.save();
+            ctx.translate(flare.x, flare.y);
+            // Flare nozzle
+            ctx.fillStyle = "#343434";
+            ctx.fillRect(-12, -8, 24, 16);
+            // Draw big layered flame
+            const flameColors = ['#ffe066', '#ffb347', '#ff6600', '#ff3300', '#c70000'];
+            let flameLen = flare.flameLength;
+            for (let i = 0; i < flameColors.length; i++) {
+                ctx.save();
+                ctx.globalAlpha = 1 - i * 0.13;
+                ctx.fillStyle = flameColors[i];
+                ctx.beginPath();
+                ctx.ellipse(
+                    0,
+                    -flameLen * 0.28 - i * 12 + Math.sin(gameTime * 0.2 + i) * 4,
+                    38 - i*5,
+                    flameLen - i*16 + Math.sin(gameTime * 0.25 + i) * 8,
+                    0,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+                ctx.restore();
             }
+            ctx.restore();
+        }
+    }
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // --- Lose Life Logic ---
+    function loseLife() {
+        if (gameState !== GameState.Playing || !droneControlEnabled) return;
+        lives -= 1;
+        updateUI();
+        statusElement.textContent = "DRONE DAMAGED!";
+        droneControlEnabled = false;
+        drone.x = DRONE_START.x;
+        drone.y = DRONE_START.y;
+        drone.targetX = DRONE_START.x;
+        drone.targetY = DRONE_START.y;
+        drone.pulseTime = 0;
+        setTimeout(() => {
+            if (lives > 0 && gameState === GameState.Playing) {
+                statusElement.textContent = "MONITORING";
+                droneControlEnabled = true;
+            }
+        }, 1000);
+        if (lives <= 0) {
+            setTimeout(() => {
+                gameState = GameState.GameOver;
+                showSplash(GameState.GameOver);
+            }, 900);
+        }
+    }
 
-            updateDrone();
-            updateEmissions();
-            updateFlares();
+    // --- Level Up Logic ---
+    function checkForLevelUp() {
+        if (score >= 1000 && level < 3 && gameState === GameState.Playing && !levelTransition) {
+            // Begin transition out
+            levelTransition = true;
+            droneControlEnabled = false;
+            statusElement.textContent = "LEVEL UP!";
+        }
+        if (score >= 1000 && level === 3 && !victory && gameState === GameState.Playing) {
+            victory = true;
+            setTimeout(() => {
+                gameState = GameState.Victory;
+                showSplash(GameState.Victory);
+            }, 1000);
+        }
+    }
 
+    function handleLevelTransition() {
+        if (!levelTransition) return;
+        // Drone flies right, ignores input
+        drone.targetX = canvas.width + 60;
+        drone.targetY = drone.y;
+        const speed = 4;
+        drone.x += speed;
+        if (drone.x > canvas.width + 40) {
+            // Fade out
+            levelTransition = false;
+            fadeToBlack(() => {
+                // Start next level
+                startLevel(level + 1);
+                // Music only changes after current ends
+                requestedMusicLevel = level + 1;
+                updateUI();
+                droneControlEnabled = true;
+                statusElement.textContent = "MONITORING";
+            });
+        }
+    }
+
+    // --- Main Game Loop ---
+    function gameLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (gameState === GameState.Playing) {
+            gameTime++;
             drawBackground();
+            if (!levelTransition) {
+                updateDrone();
+                if (level < 3) {
+                    updateEmissions();
+                    updateFlares();
+                } else {
+                    updateLevel3FlareAndPlume();
+                }
+            }
             drawPlumes();
             drawFlares();
             drawPixelDrone();
-
-            scoreElement.textContent = score;
-
-            requestAnimationFrame(gameLoop);
+            if (levelTransition) handleLevelTransition();
+            updateUI();
+            checkForLevelUp();
+        } else if (gameState === GameState.SplashStart) {
+            // Only splash is visible
+        } else if (gameState === GameState.GameOver) {
+            // Only splash is visible
+        } else if (gameState === GameState.Victory) {
+            // Only splash is visible
         }
+        requestAnimationFrame(gameLoop);
+    }
 
-        gameLoop();
-
-        // Background music play policy for browsers
-        window.addEventListener("load", function () {
-            const music = document.getElementById("bg-music");
-            music.volume = 0.4; // Optional: adjust volume (0.0 - 1.0)
-
-            // Try autoplay
-            music.play().catch(() => {
-                // Autoplay likely blocked — wait for first user interaction
-                const resumeMusic = () => {
-                    music.play();
-                    document.removeEventListener("click", resumeMusic);
-                };
-                document.addEventListener("click", resumeMusic);
-            });
-        });
+    // --- Init ---
+    function init() {
+        showSplash(GameState.SplashStart);
+        gameState = GameState.SplashStart;
+    }
+    init();
+    gameLoop();
     </script>
 </body>
 </html>
