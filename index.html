@@ -159,7 +159,7 @@
     // --- Game States ---
     const GameState = {
         SplashStart: 'SplashStart',
-        Entering: 'Entering',     // New state for drone fly-in
+        Entering: 'Entering',
         Playing: 'Playing',
         Respawning: 'Respawning',
         LevelTransition: 'LevelTransition',
@@ -174,17 +174,16 @@
     let score = 0;
     let gameTime = 0;
     let keys = {};
-    let windDirection = 1; // 1 for right, -1 for left
+    let windDirection = 1;
     let windSpeed = 0.5;
     let droneRespawnTimer = 0;
     let droneControlEnabled = false;
     let levelTransition = false;
     let victory = false;
-    const SCORE_TO_LEVEL_UP = 20;
+    const SCORE_TO_LEVEL_UP = 1000;
 
     // --- Drone ---
     const DRONE_START = {x: 100, y: 300};
-    let droneFlyInTarget = {x: DRONE_START.x, y: DRONE_START.y};
     const drone = {
         x: -40, // Off-screen start
         y: DRONE_START.y,
@@ -241,7 +240,7 @@
     let flareSpawnTimer = 0;
 
     // --- Level 3 special objects ---
-    let level3Flare, level3Plume;
+    let level3Flare = null, level3Plume = null;
 
     // --- Splash Helper ---
     function showSplash(type) {
@@ -321,7 +320,6 @@
     }
 
     function startDroneFlyIn() {
-        // Reset drone off-screen on left, fly to DRONE_START.x, y
         drone.x = -40;
         drone.y = DRONE_START.y;
         drone.targetX = DRONE_START.x;
@@ -351,15 +349,16 @@
     }
 
     function startLevel(lvl) {
-        level = lvl;
-        gameTime = 0;
+        // Set game state to Entering for the drone fly-in
+        gameState = GameState.Entering;
         plumes = [];
         flares = [];
         flareSpawnTimer = 0;
+        emissionSources = [];
+        level3Flare = null;
+        level3Plume = null;
 
-        // For Entering state, drone starts off-screen and flies in.
         startDroneFlyIn();
-
         currentBg = backgrounds[lvl-1];
 
         if (lvl === 1 || lvl === 2) {
@@ -383,14 +382,12 @@
         updateUI();
     }
 
-    // --- UI Helper ---
     function updateUI() {
         scoreElement.textContent = score;
         livesElement.textContent = lives;
         levelElement.textContent = level;
     }
 
-    // --- Drone Movement and Scoring (2 points/frame, bigger hitbox) ---
     function updateDrone() {
         if (!droneControlEnabled) return;
         const speed = 2.5;
@@ -405,7 +402,6 @@
         drone.y += (drone.targetY - drone.y) * smoothing;
         drone.inPlume = false;
 
-        // Scoring logic: 2 points per frame, generous hitbox
         let inPlumeThisFrame = false;
         if (level < 3) {
             for (let plume of plumes) {
@@ -432,9 +428,7 @@
         drone.inPlumeLastFrame = drone.inPlume;
     }
 
-    // --- Drone Fly-In Animation (used for both start and level transitions) ---
     function updateDroneFlyIn() {
-        // Move drone towards DRONE_START.x
         const flySpeed = 6;
         if (drone.x < DRONE_START.x) {
             drone.x += flySpeed;
@@ -450,7 +444,6 @@
         }
     }
 
-    // --- Drone Drawing (unchanged) ---
     function drawPixelDrone() {
         ctx.save();
         ctx.translate(drone.x, drone.y);
@@ -475,7 +468,6 @@
         ctx.fillRect(8, -8, 8, 2);
         ctx.fillRect(-16, 6, 8, 2);
         ctx.fillRect(8, 6, 8, 2);
-        // Rotors with spinning effect
         const rotorPositions = [
             {x: -12, y: -7}, {x: 12, y: -7},
             {x: -12, y: 7}, {x: 12, y: 7}
@@ -503,7 +495,6 @@
         ctx.restore();
     }
 
-    // --- Emission Logic (Level 1/2) ---
     function updateEmissions() {
         if (level >= 3) return;
         if (Math.random() < 0.002) {
@@ -537,7 +528,6 @@
         });
     }
 
-    // --- Flare Logic (Level 1/2) ---
     function spawnFlare() {
         if (emissionSources.length > 0) {
             const source = emissionSources[Math.floor(Math.random() * emissionSources.length)];
@@ -573,7 +563,6 @@
         });
     }
 
-    // --- Level 3 Flare & Emission ---
     function updateLevel3FlareAndPlume() {
         if (!level3Flare || !level3Plume) return;
         level3Plume.t += 0.008;
@@ -595,7 +584,6 @@
         }
     }
 
-    // --- Drawing ---
     function drawBackground() {
         if (currentBg && currentBg.complete)
             ctx.drawImage(currentBg, 0, 0, canvas.width, canvas.height);
@@ -642,7 +630,7 @@
                 }
                 ctx.restore();
             });
-        } else {
+        } else if (level3Plume) {
             const plume = level3Plume;
             ctx.save();
             ctx.globalAlpha = plume.opacity;
@@ -724,7 +712,7 @@
                     }
                 }
             });
-        } else {
+        } else if (level3Flare) {
             const flare = level3Flare;
             ctx.save();
             ctx.translate(flare.x, flare.y);
@@ -735,7 +723,6 @@
         }
     }
 
-    // --- Lose Life Logic ---
     function loseLife() {
         if (gameState !== GameState.Playing || !droneControlEnabled) return;
         lives -= 1;
@@ -788,15 +775,11 @@
                 if (level < 3) {
                     level += 1;
                     startLevel(level);
-                    gameState = GameState.Entering;
-                    droneControlEnabled = false;
-                    statusElement.textContent = "MONITORING";
                 }
             });
         }
     }
 
-    // --- Main Game Loop ---
     function gameLoop() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         if (gameState === GameState.Playing) {
@@ -835,7 +818,6 @@
         requestAnimationFrame(gameLoop);
     }
 
-    // --- Init ---
     function init() {
         showSplash(GameState.SplashStart);
         gameState = GameState.SplashStart;
