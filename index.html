@@ -709,7 +709,7 @@
                 statusElement.textContent = "MONITORING";
                 droneControlEnabled = true;
             }
-        }, 1000);
+        }, 20);
         if (lives <= 0) {
             setTimeout(() => {
                 gameState = GameState.GameOver;
@@ -720,18 +720,18 @@
 
     // --- Level Up Logic ---
     function checkForLevelUp() {
-        if (score >= 1000 && level < 3 && gameState === GameState.Playing && !levelTransition) {
+        if (score >= 20 && level < 3 && gameState === GameState.Playing && !levelTransition) {
             // Begin transition out
             levelTransition = true;
             droneControlEnabled = false;
             statusElement.textContent = "LEVEL UP!";
         }
-        if (score >= 1000 && level === 3 && !victory && gameState === GameState.Playing) {
+        if (score >= 20 && level === 3 && !victory && gameState === GameState.Playing) {
             victory = true;
             setTimeout(() => {
                 gameState = GameState.Victory;
                 showSplash(GameState.Victory);
-            }, 1000);
+            }, 20);
         }
     }
 
