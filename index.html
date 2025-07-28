@@ -16,21 +16,18 @@
             font-family: 'Courier New', monospace;
             color: #00ff00;
         }
-
         #gameContainer {
             position: relative;
             background: linear-gradient(to bottom, #16213e 0%, #0f3460 50%, #1a1a2e 100%);
             border: 3px solid #00ff00;
             box-shadow: 0 0 20px #00ff00;
         }
-
         #gameCanvas {
             display: block;
             image-rendering: pixelated;
             image-rendering: -moz-crisp-edges;
             image-rendering: crisp-edges;
         }
-
         #ui {
             position: absolute;
             top: 10px;
@@ -44,7 +41,6 @@
             pointer-events: none;
             user-select: none;
         }
-
         #instructions {
             position: absolute;
             bottom: 10px;
@@ -56,7 +52,6 @@
             pointer-events: none;
             user-select: none;
         }
-
         .splash {
             position: absolute;
             top: 0;
@@ -71,14 +66,12 @@
             cursor: pointer;
             transition: opacity 0.4s;
         }
-
         .splash img {
             max-width: 90%;
             max-height: 90%;
             display: block;
             margin: 0 auto;
         }
-
         .fade {
             pointer-events: none;
             position: absolute;
@@ -109,7 +102,6 @@
         <div id="fade" class="fade"></div>
     </div>
     <audio id="bg-music" src="" loop></audio>
-
     <script>
     // --- Asset paths ---
     const ASSETS = {
@@ -122,13 +114,18 @@
             'refinery_background.png',
             'level2_background.png',
             'level3_background.png'
-        ],
-        music: [
-            'level1.mp3',
-            'level2.mp3',
-            'level3.mp3'
         ]
     };
+
+    // --- Music files (add as many as you want in the folder) ---
+    const MUSIC_FILES = [
+        "song1.mp3",
+        "song2.mp3",
+        "song3.mp3",
+        "song4.mp3",
+        "song5.mp3"
+        // Add more mp3 filenames here
+    ];
 
     // --- UI Elements ---
     const canvas = document.getElementById('gameCanvas');
@@ -165,7 +162,6 @@
     let droneRespawnTimer = 0;
     let droneControlEnabled = false;
     let levelTransition = false;
-    let levelTransitionFade = 0;
     let victory = false;
 
     // --- Drone ---
@@ -178,6 +174,7 @@
         width: 32,
         height: 24,
         inPlume: false,
+        inPlumeLastFrame: false,
         pulseTime: 0,
         rotorSpin: 0
     };
@@ -190,10 +187,29 @@
     let currentBg = backgrounds[0];
 
     // --- Music ---
-    let selectedMusicIndex = Math.floor(Math.random() * ASSETS.music.length);
-    let musicReady = false;
+    let currentMusicIndex = -1;
     music.volume = 0.4;
-    music.loop = true;
+    music.loop = false; // We handle looping ourselves
+
+    function pickRandomMusicIndex(excludeIndex = -1) {
+        if (MUSIC_FILES.length < 2) return 0;
+        let idx;
+        do {
+            idx = Math.floor(Math.random() * MUSIC_FILES.length);
+        } while (idx === excludeIndex);
+        return idx;
+    }
+    function playRandomMusic() {
+        if (MUSIC_FILES.length === 0) return;
+        const idx = pickRandomMusicIndex(currentMusicIndex);
+        currentMusicIndex = idx;
+        music.src = MUSIC_FILES[idx];
+        music.currentTime = 0;
+        music.play().catch(()=>{});
+    }
+    music.onended = function() {
+        playRandomMusic();
+    };
 
     // --- Emission Sources and Flares ---
     let emissionSources = [];
@@ -236,20 +252,6 @@
         }, 1200);
     }
 
-    // --- Music Handlers ---
-    function playRandomMusic() {
-        selectedMusicIndex = Math.floor(Math.random() * ASSETS.music.length);
-        music.src = ASSETS.music[selectedMusicIndex];
-        music.currentTime = 0;
-        music.play().catch(()=>{});
-        musicReady = true;
-    }
-    // Loop the same song
-    music.onended = function() {
-        music.currentTime = 0;
-        music.play().catch(()=>{});
-    };
-
     // --- Input ---
     document.addEventListener('keydown', (e) => { keys[e.key] = true; });
     document.addEventListener('keyup', (e) => { keys[e.key] = false; });
@@ -264,7 +266,6 @@
 
     // --- Music start policy ---
     window.addEventListener("load", function () {
-        // Try autoplay
         playRandomMusic();
         music.play().catch(() => {
             // Autoplay likely blocked — wait for first user interaction
@@ -285,7 +286,6 @@
         fadeDiv.style.opacity = 0;
         fadeDiv.style.display = 'none';
         startLevel(level);
-        // No transition at first
         gameState = GameState.Playing;
         droneControlEnabled = true;
         statusElement.textContent = "MONITORING";
@@ -309,17 +309,6 @@
         }
         return sources;
     }
-    function generateFlarePoints(num) {
-        // Place flares at emission source locations
-        let points = [];
-        for (let i = 0; i < num; i++) {
-            points.push({
-                x: emissionSources[i].x,
-                y: emissionSources[i].y
-            });
-        }
-        return points;
-    }
 
     function startLevel(lvl) {
         level = lvl;
@@ -330,13 +319,14 @@
         drone.x = DRONE_START.x; drone.y = DRONE_START.y;
         drone.targetX = DRONE_START.x; drone.targetY = DRONE_START.y;
         drone.pulseTime = 0; drone.rotorSpin = 0;
-        // Level backgrounds
+        drone.inPlume = false;
+        drone.inPlumeLastFrame = false;
+
         currentBg = backgrounds[lvl-1];
-        // Generate emission sources and flare points
+
         if (lvl === 1 || lvl === 2) {
             emissionSources = generateEmissionSources(4);
         } else if (lvl === 3) {
-            // Level 3: single central flare, plume is dynamic
             level3Flare = {
                 x: 400, y: 350,
                 baseW: 80, baseH: 100,
@@ -381,7 +371,9 @@
                 const dist = Math.sqrt((drone.x - plume.x) ** 2 + (drone.y - plume.y) ** 2);
                 if (dist < plume.radius * 0.7) {
                     drone.inPlume = true;
-                    score += 1;
+                    if (!drone.inPlumeLastFrame) {
+                        score += 1;
+                    }
                     break;
                 }
             }
@@ -389,10 +381,13 @@
             const dist = Math.sqrt((drone.x - level3Plume.x) ** 2 + (drone.y - level3Plume.y) ** 2);
             if (dist < level3Plume.radius * 0.7) {
                 drone.inPlume = true;
-                score += 1;
+                if (!drone.inPlumeLastFrame) {
+                    score += 1;
+                }
             }
         }
         if (drone.inPlume) drone.pulseTime += 0.2;
+        drone.inPlumeLastFrame = drone.inPlume;
     }
 
     // --- Drone Drawing ---
@@ -752,10 +747,13 @@
             levelTransition = false;
             fadeToBlack(() => {
                 // Start next level
-                startLevel(level + 1);
-                updateUI();
-                droneControlEnabled = true;
-                statusElement.textContent = "MONITORING";
+                if (level < 3) {
+                    startLevel(level + 1);
+                    level += 1;
+                    updateUI();
+                    droneControlEnabled = true;
+                    statusElement.textContent = "MONITORING";
+                }
             });
         }
     }
