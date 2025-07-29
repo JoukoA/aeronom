@@ -358,33 +358,47 @@
         return sources;
     }
 
-   function startLevel(lvl) {
-    // console.log(`Starting level ${lvl}`); // Debug log
+      function startLevel(lvl) {
+        // console.log(`Starting level ${lvl}`); // Debug log
 
-    // Clear all game objects
-    plumes = [];
-    flares = [];
-    flareSpawnTimer = 0;
-    emissionSources = [];
-    level3Flare = null;
-    level3Plume = null;
+        // Clear all game objects
+        plumes = [];
+        flares = [];
+        flareSpawnTimer = 0;
+        emissionSources = [];
+        level3Flare = null;
+        level3Plume = null;
 
-    // Reset the levelTransition flag explicitly when starting a new level
-    levelTransition = false; // <--- ADD THIS LINE
+        // Set background
+        if (lvl >= 1 && lvl <= 3) {
+            currentBg = backgrounds[lvl-1];
+            // console.log(`Background set to index ${lvl-1}`); // Debug log
+        }
 
-    // Set background
-    if (lvl >= 1 && lvl <= 3) {
-        currentBg = backgrounds[lvl-1];
-        // console.log(`Background set to index ${lvl-1}`); // Debug log
+        // Setup level-specific objects
+        if (lvl === 1 || lvl === 2) {
+            emissionSources = generateEmissionSources(4);
+            // console.log(`Generated ${emissionSources.length} emission sources for level ${lvl}`); // Debug log
+        } else if (lvl === 3) {
+            // console.log("Setting up level 3 with special flare and plume"); // Debug log
+            level3Flare = {
+                x: 400, y: 350,
+                x: 400, y: 200,
+                baseW: 80, baseH: 100,
+                flameLength: 100,
+                burning: true
+            };
+            level3Plume = {
+                x: 400, y: 320,
+                radius: 40,
+                opacity: 0.8,
+                drift: 0,
+                vx: 1.2, vy: -0.2,
+                t: 0
+            };
+        }
+        updateUI();
     }
-
-    // Setup level-specific objects
-    // ... (rest of your startLevel function)
-
-    scoreAccumulationDelay = 60; // Keep this in place!
-
-    updateUI();
-}
 
     function updateUI() {
         scoreElement.textContent = Math.floor(score);
