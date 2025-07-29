@@ -359,21 +359,40 @@
     }
 
     function startLevel(lvl) {
-        // console.log(`Starting level ${lvl}`); // Debug log
-        
-        // Clear all game objects
-        plumes = [];
-        flares = [];
-        flareSpawnTimer = 0;
-        emissionSources = [];
-        level3Flare = null;
-        level3Plume = null;
+    // Clear all game objects
+    plumes = [];
+    flares = [];
+    flareSpawnTimer = 0;
+    emissionSources = [];
+    level3Flare = null;
+    level3Plume = null;
 
-        // Set background
-        if (lvl >= 1 && lvl <= 3) {
-            currentBg = backgrounds[lvl-1];
-            // console.log(`Background set to index ${lvl-1}`); // Debug log
-        }
+    // Set background
+    if (lvl >= 1 && lvl <= 3) {
+        currentBg = backgrounds[lvl-1];
+    }
+
+    // Setup level-specific objects
+    if (lvl === 1 || lvl === 2) {
+        emissionSources = generateEmissionSources(4);
+    } else if (lvl === 3) {
+        level3Flare = {
+            x: 400, y: 350,
+            baseW: 80, baseH: 100,
+            flameLength: 100,
+            burning: true
+        };
+        level3Plume = {
+            x: 400, y: 320,
+            radius: 40,
+            opacity: 0.8,
+            drift: 0,
+            vx: 1.2, vy: -0.2,
+            t: 0
+        };
+    }
+    updateUI();
+}
 
         // Setup level-specific objects
         if (lvl === 1 || lvl === 2) {
@@ -796,29 +815,27 @@
 }
 
 function checkForLevelUp() {
-    // Only check for level up if we are playing, not already transitioning, and not in victory state
-    if (gameState === GameState.Playing && !levelTransition && !victory) {
-        // Check if the current level exists in our defined level-up scores
-        if (level >= 1 && level <= LEVEL_UP_SCORES.length) {
-            const requiredScore = LEVEL_UP_SCORES[level - 1]; // -1 because array is 0-indexed
-
-            if (score >= requiredScore) {
-                // If it's the last level and we've met the score, trigger victory
-                if (level === LEVEL_UP_SCORES.length) {
-                    victory = true;
-                    // Provide some visual feedback before the splash screen
-                    statusElement.textContent = "MISSION COMPLETE!";
-                    droneControlEnabled = false; // Disable drone control immediately
-                    setTimeout(() => {
-                        gameState = GameState.Victory;
-                        showSplash(GameState.Victory);
-                    }, 1000); // Short delay before showing victory splash
-                } else {
-                    // Otherwise, trigger a regular level transition
-                    levelTransition = true;
-                    droneControlEnabled = false;
-                    statusElement.textContent = "LEVEL UP!";
-                }
+    if (gameState !== GameState.Playing || levelTransition || victory) return;
+    
+    // Check if we've reached the required score for the current level
+    if (level <= LEVEL_UP_SCORES.length) {
+        const requiredScore = LEVEL_UP_SCORES[level - 1];
+        
+        if (score >= requiredScore) {
+            if (level === LEVEL_UP_SCORES.length) {
+                // Final level completed
+                victory = true;
+                statusElement.textContent = "MISSION COMPLETE!";
+                droneControlEnabled = false;
+                setTimeout(() => {
+                    gameState = GameState.Victory;
+                    showSplash(GameState.Victory);
+                }, 1000);
+            } else {
+                // Regular level up
+                levelTransition = true;
+                droneControlEnabled = false;
+                statusElement.textContent = "LEVEL UP!";
             }
         }
     }
@@ -838,8 +855,7 @@ function checkForLevelUp() {
     }
 
     function gameLoop() {
-  function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (gameState === GameState.Playing) {
         gameTime++;
