@@ -309,25 +309,25 @@
     });
 
     // --- Game Start/Reset ---
-   function startGame() {
-    level = 3;
-    lives = 3;
-    score = 0;
-    gameTime = 0;
-    levelTransition = false;
-    victory = false;
-    isFadingToNextLevel = false;
-    fadeDiv.style.opacity = 0;
-    fadeDiv.style.display = 'none';
-
-    startLevel(level);
-    gameState = GameState.Entering;
-    droneControlEnabled = false;
-    statusElement.textContent = "MONITORING";
-    updateUI();
-    ensureMusicPlaying();
-    startDroneFlyIn();
-}
+  function startGame() {
+        level = 1;
+        lives = 3;
+        score = 0;
+        gameTime = 0;
+        levelTransition = false;
+        victory = false;
+        isFadingToNextLevel = false;
+        fadeDiv.style.opacity = 0;
+        fadeDiv.style.display = 'none';
+        
+        startLevel(level);
+        gameState = GameState.Entering;
+        droneControlEnabled = false;
+        statusElement.textContent = "MONITORING";
+        updateUI();
+        ensureMusicPlaying();
+        startDroneFlyIn();
+    }
 
     function startDroneFlyIn() {
         drone.x = -40;
