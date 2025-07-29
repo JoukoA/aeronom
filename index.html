@@ -82,21 +82,7 @@
             opacity: 0;
             transition: opacity 1s;
         }
-        #musicNotice {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #00ff00;
-            background: rgba(0,0,0,0.8);
-            border: 2px solid #00ff00;
-            padding: 24px;
-            font-size: 1.3em;
-            z-index: 20;
-            text-shadow: 2px 2px 0 #000;
-            display: none;
-        }
-    </style>
+           </style>
 </head>
 <body>
     <div id="gameContainer">
@@ -114,7 +100,6 @@
             <img id="splash-img" src="" alt="Splash">
         </div>
         <div id="fade" class="fade"></div>
-        <div id="musicNotice">Click anywhere to enable background music!</div>
     </div>
     <audio id="bg-music" src="" preload="auto"></audio>
     <script>
@@ -154,7 +139,7 @@
     const splashImg = document.getElementById('splash-img');
     const fadeDiv = document.getElementById('fade');
     const music = document.getElementById('bg-music');
-    const musicNotice = document.getElementById('musicNotice');
+    
 
     // --- Game States ---
     const GameState = {
@@ -232,8 +217,7 @@
         music.src = MUSIC_FILES[idx];
         music.load();
         music.play().catch(() => {
-            musicNotice.style.display = "block";
-        });
+                    });
     }
     music.onended = function() {
         playRandomMusic();
@@ -288,7 +272,7 @@
     function ensureMusicPlaying() {
         if (music.paused) {
             playRandomMusic();
-            musicNotice.style.display = "none";
+            
         }
     }
     window.addEventListener("click", ensureMusicPlaying, {once: true});
