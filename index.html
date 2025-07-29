@@ -182,6 +182,11 @@
     let victory = false;
     let isFadingToNextLevel = false; // NEW: prevents multiple fades
     const SCORE_TO_LEVEL_UP = 1000;
+        const LEVEL_UP_SCORES = [
+    SCORE_TO_LEVEL_UP,      // For Level 1 to Level 2
+    SCORE_TO_LEVEL_UP * 2,  // For Level 2 to Level 3
+    SCORE_TO_LEVEL_UP * 3   // For Level 3 to Victory
+];
 
     // --- Drone ---
     const DRONE_START = {x: 100, y: 300};
@@ -395,7 +400,7 @@
     }
 
     function updateUI() {
-        scoreElement.textContent = score;
+        scoreElement.textContent = Math.floor(score);
         livesElement.textContent = lives;
         levelElement.textContent = level;
     }
