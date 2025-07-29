@@ -141,11 +141,11 @@
         "song5.mp3"
         // Add more...
     ];
-       
-      const flareIgniteSound = new Audio('flare_ignite.mp3');
-      const droneHitSound = new Audio('drone_hit.mp3');
-        flareIgniteSound.volume = 0.2;
-    
+        
+    const flareIgniteSound = new Audio('flare_ignite.mp3');
+    const droneHitSound = new Audio('drone_hit.mp3');
+    flareIgniteSound.volume = 0.2;
+        
 
     // --- UI Elements ---
     const canvas = document.getElementById('gameCanvas');
@@ -187,10 +187,10 @@
     let victory = false;
     let isFadingToNextLevel = false; // NEW: prevents multiple fades
     const SCORE_TO_LEVEL_UP = 1000;
-        const LEVEL_UP_SCORES = [
-    SCORE_TO_LEVEL_UP,      // For Level 1 to Level 2
+    const LEVEL_UP_SCORES = [
+    SCORE_TO_LEVEL_UP,       // For Level 1 to Level 2
     SCORE_TO_LEVEL_UP * 2,  // For Level 2 to Level 3
-    SCORE_TO_LEVEL_UP * 3   // For Level 3 to Victory
+    SCORE_TO_LEVEL_UP * 3    // For Level 3 to Victory
 ];
 
     // --- Drone ---
@@ -252,6 +252,7 @@
 
     // --- Level 3 special objects ---
     let level3Flare = null, level3Plume = null;
+    let seagull = null; // Declare seagull here
 
     // --- Splash Helper ---
     function showSplash(type) {
@@ -314,7 +315,7 @@
     });
 
     // --- Game Start/Reset ---
- function startGame() {
+    function startGame() {
         level = 1;
         lives = 3;
         score = 0;
@@ -363,9 +364,7 @@
         return sources;
     }
 
-      function startLevel(lvl) {
-        // console.log(`Starting level ${lvl}`); // Debug log
-
+    function startLevel(lvl) {
         // Clear all game objects
         plumes = [];
         flares = [];
@@ -373,23 +372,21 @@
         emissionSources = [];
         level3Flare = null;
         level3Plume = null;
- // Reset the levelTransition flag explicitly when starting a new level
-    levelTransition = false;
+        seagull = null; // Reset seagull for all levels
+
+        // Reset the levelTransition flag explicitly when starting a new level
+        levelTransition = false;
         // Set background
         if (lvl >= 1 && lvl <= 3) {
             currentBg = backgrounds[lvl-1];
-            // console.log(`Background set to index ${lvl-1}`); // Debug log
         }
 
         // Setup level-specific objects
         if (lvl === 1 || lvl === 2) {
             emissionSources = generateEmissionSources(4);
-            // console.log(`Generated ${emissionSources.length} emission sources for level ${lvl}`); // Debug log
         } else if (lvl === 3) {
-            // console.log("Setting up level 3 with special flare and plume"); // Debug log
             level3Flare = {
-                x: 400, y: 350,
-                x: 400, y: 200,
+                x: 400, y: 200, // Adjusted Y for better visibility with seagull
                 baseW: 80, baseH: 100,
                 flameLength: 100,
                 burning: true
@@ -401,6 +398,18 @@
                 drift: 0,
                 vx: 1.2, vy: -0.2,
                 t: 0
+            };
+            // Initialize seagull ONLY for Level 3
+            seagull = {
+                x: -50, // Start off-screen left
+                y: 100,
+                width: 60,
+                height: 30,
+                vx: 1.5, // Initial velocity
+                vy: 0.8,
+                amplitudeY: 40, // How much it bobs up and down
+                frequencyY: 0.04, // How fast it bobs
+                angle: Math.random() * Math.PI * 2 // Random start angle for bobbing
             };
         }
         updateUI();
@@ -513,393 +522,3 @@
                 ctx.moveTo(-6, 0);
                 ctx.lineTo(6, 0);
                 ctx.stroke();
-                ctx.restore();
-            }
-            ctx.restore();
-        });
-        ctx.restore();
-    }
-
-    function updateEmissions() {
-        if (level >= 3) return;
-        if (Math.random() < 0.002) {
-            windDirection = Math.random() > 0.5 ? 1 : -1;
-            windSpeed = 0.3 + Math.random() * 0.4;
-        }
-        emissionSources.forEach(source => {
-            source.lastEmission++;
-            if (source.lastEmission > source.emissionRate && plumes.length < 2) {
-                plumes.push({
-                    x: source.x,
-                    y: source.y,
-                    startX: source.x,
-                    radius: 20,
-                    life: 400 + Math.random() * 100,
-                    maxLife: 400,
-                    opacity: 0.7,
-                    drift: 0
-                });
-                source.lastEmission = 0;
-                source.emissionRate = 400 + Math.random() * 300;
-            }
-        });
-        plumes = plumes.filter(plume => {
-            plume.life--;
-            plume.opacity = (plume.life / plume.maxLife) * 0.7;
-            plume.drift += windSpeed * windDirection;
-            plume.x = plume.startX + plume.drift;
-            plume.radius += 0.15;
-            return plume.life > 0;
-        });
-    }
-
-    function spawnFlare() {
-        if (emissionSources.length > 0) {
-            const source = emissionSources[Math.floor(Math.random() * emissionSources.length)];
-            flares.push({
-                x: source.x,
-                y: source.y,
-                warning: 90,
-                burning: 0,
-                maxBurning: 100,
-                flameLength: 0
-            });
-        }
-    }
-   function updateFlares() {
-    if (level >= 3) return;
-    flareSpawnTimer++;
-    if (flareSpawnTimer > 100 + Math.random() * 200) {
-        spawnFlare();
-        flareSpawnTimer = 0;
-    }
-    flares = flares.filter(flare => {
-        if (flare.warning > 0) {
-            flare.warning--;
-        } else if (flare.burning < flare.maxBurning) {
-            // --- MOVED THE SOUND CHECK HERE ---
-            if (flare.burning === 0) { // Check if it's the very first frame of burning
-                flareIgniteSound.currentTime = 0; // Rewind to start in case it's playing
-                flareIgniteSound.play();
-            }
-            // --- END MOVED SECTION ---
-
-            flare.burning++; // Now increment burning *after* the check
-
-            flare.flameLength = 40 + Math.sin(gameTime * 0.2) * 10 + Math.random() * 8;
-            const dist = Math.sqrt((drone.x - flare.x) ** 2 + (drone.y - flare.y) ** 2);
-            if (dist < 35 && droneControlEnabled) {
-                loseLife();
-            }
-        }
-        return flare.warning > 0 || flare.burning < flare.maxBurning;
-    });
-}
-
-    function updateLevel3FlareAndPlume() {
-        if (!level3Flare || !level3Plume) return;
-        level3Plume.t += 0.008;
-        const t = level3Plume.t;
-        level3Plume.x = 400 + Math.sin(t * 0.8) * 180 + Math.sin(t * 0.05) * 30;
-        level3Plume.y = 150 + Math.sin(t * 2.7) * 60 + Math.cos(t * 0.35) * 15;
-        level3Plume.radius = 40 + 18 * Math.abs(Math.sin(t * 1.4));
-        level3Plume.opacity = 0.8 + 0.15 * Math.sin(t * 1.2);
-
-        if (level === 3 && level3Flare && droneControlEnabled) {
-            const flareHitboxRadius = 55;
-            const dist = Math.sqrt(
-                (drone.x - level3Flare.x) ** 2 +
-                (drone.y - (level3Flare.y - level3Flare.flameLength * 0.6)) ** 2
-            );
-            if (dist < flareHitboxRadius) {
-                loseLife();
-            }
-        }
-    }
-
-    function drawBackground() {
-        if (currentBg && currentBg.complete) {
-            ctx.drawImage(currentBg, 0, 0, canvas.width, canvas.height);
-        } else {
-            // Fallback background
-            ctx.fillStyle = "#202040";
-            ctx.fillRect(0,0,canvas.width,canvas.height);
-        }
-        
-        // Draw emission sources for levels 1 and 2
-        if (level < 3) {
-            ctx.fillStyle = '#666666';
-            emissionSources.forEach(source => {
-                ctx.fillRect(source.x - 2, source.y - 6, 4, 6);
-                ctx.fillStyle = '#888888';
-                ctx.fillRect(source.x - 1, source.y - 4, 2, 4);
-                ctx.fillStyle = '#666666';
-            });
-        }
-    }
-
-    function drawPlumes() {
-        if (level < 3) {
-            plumes.forEach(plume => {
-                ctx.save();
-                ctx.globalAlpha = plume.opacity;
-                const grayColors = ['#b0b0b0', '#868686', '#666666', '#444444'];
-                for (let r = 0; r < 4; r++) {
-                    ctx.fillStyle = grayColors[r];
-                    ctx.beginPath();
-                    ctx.ellipse(
-                        plume.x + plume.drift/3,
-                        plume.y,
-                        (plume.radius * 1.5) * (1 - r*0.18),
-                        (plume.radius * 0.8) * (1 - r*0.18),
-                        0, 0, Math.PI * 2
-                    );
-                    ctx.fill();
-                }
-                for (let i = 0; i < 6; i++) {
-                    const angle = (i / 6) * Math.PI * 2;
-                    const distance = plume.radius * (0.8 + Math.random() * 0.4);
-                    const px = plume.x + plume.drift/3 + Math.cos(angle) * distance;
-                    const py = plume.y + Math.sin(angle) * distance * 0.6;
-                    ctx.fillStyle = `rgba(102, 102, 102, ${0.2 * plume.opacity})`;
-                    ctx.fillRect(px - 1, py - 1, 2, 2);
-                }
-                ctx.restore();
-            });
-        } else if (level3Plume) {
-            const plume = level3Plume;
-            ctx.save();
-            ctx.globalAlpha = plume.opacity;
-            const grayColors = ['#bbbbbb', '#bbbbbb', '#888888', '#444444'];
-            for (let r = 0; r < 4; r++) {
-                ctx.fillStyle = grayColors[r];
-                ctx.beginPath();
-                ctx.ellipse(
-                    plume.x,
-                    plume.y,
-                    (plume.radius * 2.1) * (1 - r*0.17),
-                    (plume.radius * 1.2) * (1 - r*0.17),
-                    0, 0, Math.PI * 2
-                );
-                ctx.fill();
-            }
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
-                const distance = plume.radius * (1 + Math.random() * 0.7);
-                const px = plume.x + Math.cos(angle) * distance * 1.35;
-                const py = plume.y + Math.sin(angle) * distance * 0.9;
-                ctx.fillStyle = `rgba(180,180,180,${0.16 * plume.opacity})`;
-                ctx.fillRect(px-1,py-1,2,2);
-            }
-            ctx.restore();
-        }
-    }
-
-    function drawPixelFlame(ctx, x, y, baseLen, intensity, style = 'normal') {
-        const palettes = [
-            ['#fffbe0', '#ffd700', '#ffb347', '#ff6600', '#a52a2a'],
-            ['#ffffcc', '#ffe066', '#ffb347', '#ff6600', '#d2691e'],
-            ['#fffbe0', '#ffd700', '#ffb347', '#ff6600', '#ff3300']
-        ];
-        const palette = palettes[Math.floor(Math.random()*palettes.length)];
-        let len = baseLen + Math.round(Math.random()*intensity-0.5*intensity);
-        let w = 13 + Math.round(Math.random()*4);
-        for (let layer = 0; layer < 5; layer++) {
-            ctx.save();
-            ctx.globalAlpha = 0.85 - 0.14*layer;
-            ctx.fillStyle = palette[layer];
-            let lx = x;
-            let ly = y - layer*len*0.22 + Math.round(Math.sin(gameTime*0.2+layer)*2);
-            let lw = w - layer*2;
-            let lh = len - layer*10 + Math.round(Math.random()*2);
-            for (let j = 0; j < 3+layer; j++) {
-                let ox = Math.round((Math.random()-0.5)*lw*0.25);
-                let oy = Math.round((Math.random()-0.5)*lh*0.15);
-                ctx.fillRect(lx - lw/2 + ox, ly - lh/2 + oy, lw, lh);
-            }
-            ctx.restore();
-        }
-        for (let s=0; s<6; s++) {
-            let sx = x + (Math.random()-0.5)*w*0.8;
-            let sy = y - baseLen*0.6 + Math.random()*10;
-            ctx.globalAlpha = 0.7;
-            ctx.fillStyle = "#fffbe0";
-            ctx.fillRect(sx, sy, 2, 2);
-        }
-        ctx.globalAlpha = 1.0;
-    }
-
-    function drawFlares() {
-        if (level < 3) {
-            flares.forEach(flare => {
-                if (flare.warning > 0) {
-                    const pulse = Math.sin(gameTime * 0.2) * 0.8 + 0.5;
-                    ctx.fillStyle = `rgba(255, 50, 50, ${pulse * 0.8})`;
-                    ctx.font = "bold 14px Courier New";
-                    ctx.fillText("⚠", flare.x - 6, flare.y - 18);
-                } else if (flare.burning > 0) {
-                    ctx.fillStyle = "#2b2b2b";
-                    ctx.fillRect(flare.x-3, flare.y-2, 6, 4);
-                    drawPixelFlame(ctx, flare.x, flare.y-11, flare.flameLength, 40);
-                    if (Math.random() < 0.03) {
-                        ctx.font = "bold 12px Courier New";
-                        ctx.fillStyle = "#ffff33";
-                        ctx.fillText("WHOOSH", flare.x + 20, flare.y - 10 + Math.random() * 4);
-                    }
-                }
-            });
-        } else if (level3Flare) {
-            const flare = level3Flare;
-            ctx.save();
-            ctx.translate(flare.x, flare.y);
-            ctx.fillStyle = "#343434";
-            ctx.fillRect(-12, -8, 24, 16);
-            drawPixelFlame(ctx, 0, -40, flare.flameLength, 40);
-            ctx.restore();
-        }
-    }
-
-    function loseLife() {
-        if (gameState !== GameState.Playing || !droneControlEnabled) return;
-        lives -= 1;
-        updateUI();
-         droneHitSound.currentTime = 0; // Rewind the sound to the beginning
-    droneHitSound.play();         // Play the crash sound
-        statusElement.textContent = "DRONE DAMAGED!";
-        droneControlEnabled = false;
-        drone.x = DRONE_START.x;
-        drone.y = DRONE_START.y;
-        drone.targetX = DRONE_START.x;
-        drone.targetY = DRONE_START.y;
-        drone.pulseTime = 0;
-        setTimeout(() => {
-            if (lives > 0 && gameState === GameState.Playing) {
-                statusElement.textContent = "MONITORING";
-                droneControlEnabled = true;
-            }
-        }, 1000);
-        if (lives <= 0) {
-            setTimeout(() => {
-                gameState = GameState.GameOver;
-                showSplash(GameState.GameOver);
-            }, 900);
-        }
-    }
-
-    // --- LEVEL-UP AND TRANSITION (SIMPLIFIED & ROBUST) ---
-  function goToNextLevel() {
-    if (isFadingToNextLevel) return;
-    isFadingToNextLevel = true;
-    fadeToBlack(() => {
-        level++;
-        // Make sure level doesn't go beyond your maximum (3 in this case)
-        if (level > 3) {
-            victory = true;
-            gameState = GameState.Victory;
-            showSplash(GameState.Victory);
-            return;
-        }
-        // --- ADD THIS LINE TO RESET SCORE ---
-        score = 0; // Reset score for the new level's target
-        // --- END ADDITION ---
-
-        startLevel(level);
-        gameState = GameState.Entering;
-        droneControlEnabled = false;
-        statusElement.textContent = "MONITORING";
-        startDroneFlyIn();
-        isFadingToNextLevel = false;
-    });
-}
-
-function checkForLevelUp() {
-    // Only check for level up if we are playing, not already transitioning, and not in victory state
-    if (gameState === GameState.Playing && !levelTransition && !victory) {
-        // Check if the current level exists in our defined level-up scores
-        if (level >= 1 && level <= LEVEL_UP_SCORES.length) {
-            const requiredScore = LEVEL_UP_SCORES[level - 1]; // -1 because array is 0-indexed
-
-            if (score >= requiredScore) {
-                // If it's the last level and we've met the score, trigger victory
-                if (level === LEVEL_UP_SCORES.length) {
-                    victory = true;
-                    // Provide some visual feedback before the splash screen
-                    statusElement.textContent = "MISSION COMPLETE!";
-                    droneControlEnabled = false; // Disable drone control immediately
-                    setTimeout(() => {
-                        gameState = GameState.Victory;
-                        showSplash(GameState.Victory);
-                    }, 1000); // Short delay before showing victory splash
-                } else {
-                    // Otherwise, trigger a regular level transition
-                    levelTransition = true;
-                    droneControlEnabled = false;
-                    statusElement.textContent = "LEVEL UP!";
-                }
-            }
-        }
-    }
-}
-
-    // In your game loop's Playing state, handle the transition simply:
-    function handleLevelTransition() {
-        if (!levelTransition) return;
-        // Move drone off-screen to the right
-        drone.targetX = canvas.width + 60;
-        const speed = 4;
-        drone.x += speed;
-        if (drone.x > canvas.width + 40) {
-            levelTransition = false;
-            goToNextLevel();
-        }
-    }
-
-    function gameLoop() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        if (gameState === GameState.Playing) {
-            gameTime++;
-            drawBackground();
-            if (!levelTransition) {
-                updateDrone();
-                if (level < 3) {
-                    updateEmissions();
-                    updateFlares();
-                } else {
-                    updateLevel3FlareAndPlume();
-                }
-            }
-            drawPlumes();
-            drawFlares();
-            drawPixelDrone();
-            if (levelTransition) handleLevelTransition();
-            updateUI();
-            checkForLevelUp();
-        } else if (gameState === GameState.Entering) {
-            gameTime++;
-            drawBackground();
-            // Update game objects even during drone fly-in
-            if (level < 3) {
-                updateEmissions();
-                updateFlares();
-            } else {
-                updateLevel3FlareAndPlume();
-            }
-            drawPlumes();
-            drawFlares();
-            updateDroneFlyIn();
-            drawPixelDrone();
-            updateUI();
-        }
-        requestAnimationFrame(gameLoop);
-    }
-
-    function init() {
-        showSplash(GameState.SplashStart);
-        gameState = GameState.SplashStart;
-    }
-    init();
-    gameLoop();
-    </script>
-</body>
-</html>
