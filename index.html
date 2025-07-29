@@ -838,44 +838,53 @@ function checkForLevelUp() {
     }
 
     function gameLoop() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        if (gameState === GameState.Playing) {
-            gameTime++;
-            drawBackground();
-            if (!levelTransition) {
-                updateDrone();
-                if (level < 3) {
-                    updateEmissions();
-                    updateFlares();
-                } else {
-                    updateLevel3FlareAndPlume();
-                }
-            }
-            drawPlumes();
-            drawFlares();
-            drawPixelDrone();
-            if (levelTransition) handleLevelTransition();
-            updateUI();
-            checkForLevelUp();
-        } else if (gameState === GameState.Entering) {
-            gameTime++;
-            drawBackground();
-            // Update game objects even during drone fly-in
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (gameState === GameState.Playing) {
+        gameTime++;
+        drawBackground();
+
+        // Only update game logic if not in a level transition
+        if (!levelTransition) { // Keep this if
+            updateDrone();
             if (level < 3) {
                 updateEmissions();
                 updateFlares();
             } else {
                 updateLevel3FlareAndPlume();
             }
-            drawPlumes();
-            drawFlares();
-            updateDroneFlyIn();
-            drawPixelDrone();
-            updateUI();
+            checkForLevelUp(); // Only check for level up when not transitioning
+        } else { // If levelTransition is true
+            handleLevelTransition(); // Only handle the transition animation
         }
-        requestAnimationFrame(gameLoop);
+
+        drawPlumes(); // Always draw plumes/flares, even if transition is active
+        drawFlares();
+        drawPixelDrone();
+        updateUI();
+
+    } else if (gameState === GameState.Entering) {
+        gameTime++;
+        drawBackground();
+        // Game objects should update even during drone fly-in/entering state
+        if (level < 3) {
+            updateEmissions();
+            updateFlares();
+        } else {
+            updateLevel3FlareAndPlume();
+        }
+        drawPlumes();
+        drawFlares();
+        updateDroneFlyIn(); // This will eventually change gameState to GameState.Playing
+        drawPixelDrone();
+        updateUI();
+        // Do NOT call checkForLevelUp here! It's not "Playing" yet.
     }
+    // ... other game states (GameOver, Victory, SplashStart) don't need game logic updates
+
+    requestAnimationFrame(gameLoop);
+}
 
     function init() {
         showSplash(GameState.SplashStart);
