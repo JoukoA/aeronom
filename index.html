@@ -110,7 +110,7 @@
         <div id="instructions">
             Arrow Keys: Move Drone | Avoid Flares | Collect Emission Data<br>
         </div>
-        <div id="splash" class="splash" style="display:none;">
+        <div id="splash" class="splash">
             <img id="splash-img" src="" alt="Splash">
         </div>
         <div id="fade" class="fade"></div>
@@ -139,7 +139,6 @@
         "song3.mp3",
         "song4.mp3",
         "song5.mp3"
-        // Add more...
     ];
 
     // --- UI Elements ---
@@ -180,13 +179,13 @@
     let droneControlEnabled = false;
     let levelTransition = false;
     let victory = false;
-    let isFadingToNextLevel = false; // NEW: prevents multiple fades
+    let isFadingToNextLevel = false;
     const SCORE_TO_LEVEL_UP = 1000;
-        const LEVEL_UP_SCORES = [
-    SCORE_TO_LEVEL_UP,      // For Level 1 to Level 2
-    SCORE_TO_LEVEL_UP * 2,  // For Level 2 to Level 3
-    SCORE_TO_LEVEL_UP * 3   // For Level 3 to Victory
-];
+    const LEVEL_UP_SCORES = [
+        SCORE_TO_LEVEL_UP,      // Level 1 → 2
+        SCORE_TO_LEVEL_UP * 2,  // Level 2 → 3
+        SCORE_TO_LEVEL_UP * 3   // Level 3 → Victory
+    ];
 
     // --- Drone ---
     const DRONE_START = {x: 100, y: 300};
@@ -224,6 +223,7 @@
         } while (idx === excludeIndex);
         return idx;
     }
+
     function playRandomMusic() {
         if (MUSIC_FILES.length === 0) return;
         const idx = pickRandomMusicIndex(currentMusicIndex);
@@ -235,6 +235,7 @@
             musicNotice.style.display = "block";
         });
     }
+
     music.onended = function() {
         playRandomMusic();
     };
@@ -259,6 +260,7 @@
         splashDiv.style.display = 'flex';
         splashDiv.style.pointerEvents = 'auto';
     }
+
     function hideSplash() {
         splashDiv.style.opacity = 0;
         splashDiv.style.pointerEvents = 'none';
@@ -269,7 +271,10 @@
     function fadeToBlack(cb) {
         fadeDiv.style.opacity = 0;
         fadeDiv.style.display = 'block';
-        setTimeout(()=>{fadeDiv.style.transition='opacity 1s';fadeDiv.style.opacity=1;}, 20);
+        setTimeout(()=>{
+            fadeDiv.style.transition='opacity 1s';
+            fadeDiv.style.opacity=1;
+        }, 20);
         setTimeout(()=>{
             fadeDiv.style.transition='opacity 0.6s';
             cb && cb();
@@ -291,6 +296,7 @@
             musicNotice.style.display = "none";
         }
     }
+
     window.addEventListener("click", ensureMusicPlaying, {once: true});
     window.addEventListener("keydown", ensureMusicPlaying, {once: true});
     window.addEventListener("touchstart", ensureMusicPlaying, {once: true});
@@ -359,47 +365,23 @@
     }
 
     function startLevel(lvl) {
-    // Clear all game objects
-    plumes = [];
-    flares = [];
-    flareSpawnTimer = 0;
-    emissionSources = [];
-    level3Flare = null;
-    level3Plume = null;
+        // Clear all game objects
+        plumes = [];
+        flares = [];
+        flareSpawnTimer = 0;
+        emissionSources = [];
+        level3Flare = null;
+        level3Plume = null;
 
-    // Set background
-    if (lvl >= 1 && lvl <= 3) {
-        currentBg = backgrounds[lvl-1];
-    }
-
-    // Setup level-specific objects
-    if (lvl === 1 || lvl === 2) {
-        emissionSources = generateEmissionSources(4);
-    } else if (lvl === 3) {
-        level3Flare = {
-            x: 400, y: 350,
-            baseW: 80, baseH: 100,
-            flameLength: 100,
-            burning: true
-        };
-        level3Plume = {
-            x: 400, y: 320,
-            radius: 40,
-            opacity: 0.8,
-            drift: 0,
-            vx: 1.2, vy: -0.2,
-            t: 0
-        };
-    }
-    updateUI();
-}
+        // Set background
+        if (lvl >= 1 && lvl <= 3) {
+            currentBg = backgrounds[lvl-1];
+        }
 
         // Setup level-specific objects
         if (lvl === 1 || lvl === 2) {
             emissionSources = generateEmissionSources(4);
-            // console.log(`Generated ${emissionSources.length} emission sources for level ${lvl}`); // Debug log
         } else if (lvl === 3) {
-            // console.log("Setting up level 3 with special flare and plume"); // Debug log
             level3Flare = {
                 x: 400, y: 350,
                 baseW: 80, baseH: 100,
@@ -455,7 +437,6 @@
         }
         if (inPlumeThisFrame) {
             drone.inPlume = true;
-            // Score accumulates 20% slower: from 2 to 1.6 per frame
             score += 1.6;
         } else {
             drone.inPlume = false;
@@ -578,6 +559,7 @@
             });
         }
     }
+
     function updateFlares() {
         if (level >= 3) return;
         flareSpawnTimer++;
@@ -788,63 +770,53 @@
         }
     }
 
-    // --- LEVEL-UP AND TRANSITION (SIMPLIFIED & ROBUST) ---
-  function goToNextLevel() {
-    if (isFadingToNextLevel) return;
-    isFadingToNextLevel = true;
-    fadeToBlack(() => {
-        level++;
-        // Make sure level doesn't go beyond your maximum (3 in this case)
-        if (level > 3) {
-            victory = true;
-            gameState = GameState.Victory;
-            showSplash(GameState.Victory);
-            return;
-        }
-        // --- ADD THIS LINE TO RESET SCORE ---
-        score = 0; // Reset score for the new level's target
-        // --- END ADDITION ---
-
-        startLevel(level);
-        gameState = GameState.Entering;
-        droneControlEnabled = false;
-        statusElement.textContent = "MONITORING";
-        startDroneFlyIn();
-        isFadingToNextLevel = false;
-    });
-}
-
-function checkForLevelUp() {
-    if (gameState !== GameState.Playing || levelTransition || victory) return;
-    
-    // Check if we've reached the required score for the current level
-    if (level <= LEVEL_UP_SCORES.length) {
-        const requiredScore = LEVEL_UP_SCORES[level - 1];
-        
-        if (score >= requiredScore) {
-            if (level === LEVEL_UP_SCORES.length) {
-                // Final level completed
+    function goToNextLevel() {
+        if (isFadingToNextLevel) return;
+        isFadingToNextLevel = true;
+        fadeToBlack(() => {
+            level++;
+            if (level > 3) {
                 victory = true;
-                statusElement.textContent = "MISSION COMPLETE!";
-                droneControlEnabled = false;
-                setTimeout(() => {
-                    gameState = GameState.Victory;
-                    showSplash(GameState.Victory);
-                }, 1000);
-            } else {
-                // Regular level up
-                levelTransition = true;
-                droneControlEnabled = false;
-                statusElement.textContent = "LEVEL UP!";
+                gameState = GameState.Victory;
+                showSplash(GameState.Victory);
+                return;
+            }
+            score = 0; // Reset score for the new level's target
+            startLevel(level);
+            gameState = GameState.Entering;
+            droneControlEnabled = false;
+            statusElement.textContent = "MONITORING";
+            startDroneFlyIn();
+            isFadingToNextLevel = false;
+        });
+    }
+
+    function checkForLevelUp() {
+        if (gameState !== GameState.Playing || levelTransition || victory) return;
+        
+        if (level <= LEVEL_UP_SCORES.length) {
+            const requiredScore = LEVEL_UP_SCORES[level - 1];
+            
+            if (score >= requiredScore) {
+                if (level === LEVEL_UP_SCORES.length) {
+                    victory = true;
+                    statusElement.textContent = "MISSION COMPLETE!";
+                    droneControlEnabled = false;
+                    setTimeout(() => {
+                        gameState = GameState.Victory;
+                        showSplash(GameState.Victory);
+                    }, 1000);
+                } else {
+                    levelTransition = true;
+                    droneControlEnabled = false;
+                    statusElement.textContent = "LEVEL UP!";
+                }
             }
         }
     }
-}
 
-    // In your game loop's Playing state, handle the transition simply:
     function handleLevelTransition() {
         if (!levelTransition) return;
-        // Move drone off-screen to the right
         drone.targetX = canvas.width + 60;
         const speed = 4;
         drone.x += speed;
@@ -855,59 +827,55 @@ function checkForLevelUp() {
     }
 
     function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (gameState === GameState.Playing) {
-        gameTime++;
-        drawBackground();
+        if (gameState === GameState.Playing) {
+            gameTime++;
+            drawBackground();
 
-        // Only update game logic if not in a level transition
-        if (!levelTransition) { // Keep this if
-            updateDrone();
+            if (!levelTransition) {
+                updateDrone();
+                if (level < 3) {
+                    updateEmissions();
+                    updateFlares();
+                } else {
+                    updateLevel3FlareAndPlume();
+                }
+                checkForLevelUp();
+            } else {
+                handleLevelTransition();
+            }
+
+            drawPlumes();
+            drawFlares();
+            drawPixelDrone();
+            updateUI();
+        } else if (gameState === GameState.Entering) {
+            gameTime++;
+            drawBackground();
             if (level < 3) {
                 updateEmissions();
                 updateFlares();
             } else {
                 updateLevel3FlareAndPlume();
             }
-            checkForLevelUp(); // Only check for level up when not transitioning
-        } else { // If levelTransition is true
-            handleLevelTransition(); // Only handle the transition animation
+            drawPlumes();
+            drawFlares();
+            updateDroneFlyIn();
+            drawPixelDrone();
+            updateUI();
         }
 
-        drawPlumes(); // Always draw plumes/flares, even if transition is active
-        drawFlares();
-        drawPixelDrone();
-        updateUI();
-
-    } else if (gameState === GameState.Entering) {
-        gameTime++;
-        drawBackground();
-        // Game objects should update even during drone fly-in/entering state
-        if (level < 3) {
-            updateEmissions();
-            updateFlares();
-        } else {
-            updateLevel3FlareAndPlume();
-        }
-        drawPlumes();
-        drawFlares();
-        updateDroneFlyIn(); // This will eventually change gameState to GameState.Playing
-        drawPixelDrone();
-        updateUI();
-        // Do NOT call checkForLevelUp here! It's not "Playing" yet.
+        requestAnimationFrame(gameLoop);
     }
-    // ... other game states (GameOver, Victory, SplashStart) don't need game logic updates
-
-    requestAnimationFrame(gameLoop);
-}
 
     function init() {
         showSplash(GameState.SplashStart);
         gameState = GameState.SplashStart;
+        gameLoop();
     }
+
     init();
-    gameLoop();
     </script>
 </body>
 </html>
