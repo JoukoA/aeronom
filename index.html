@@ -9,14 +9,21 @@ body {
     margin: 0;
     padding: 0;
     background: #1a1a2e;
-    display: flex;
-    flex-direction: column; /* Changed to column to stack game and controls */
+    display: flex; /* Flexbox for centering the entire gameWrapper */
     justify-content: center;
     align-items: center;
     min-height: 100vh;
     font-family: 'Courier New', monospace;
     color: #00ff00;
 }
+
+/* NEW: Wrapper for game and controls */
+#gameWrapper {
+    display: flex;
+    flex-direction: column; /* Stacks game above controls */
+    align-items: center; /* Centers items horizontally within the wrapper */
+}
+
 #gameContainer {
     position: relative;
     background: linear-gradient(to bottom, #16213e 0%, #0f3460 50%, #1a1a2e 100%);
@@ -57,15 +64,18 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    width: 800px;
-    height: 600px;
+    width: 800px; /* Match canvas width */
+    height: 600px; /* Match canvas height */
     background: rgba(0,0,0,0.85);
     z-index: 10;
-    display: flex;
+    display: flex; /* Always flex to center content, controlled by opacity/pointer-events */
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: opacity 0.4s;
+    /* Changed from display:none to opacity/pointer-events */
+    opacity: 0;
+    pointer-events: none;
 }
 .splash img {
     max-width: 90%;
@@ -98,7 +108,7 @@ body {
     display: none;
 }
 
-/* --- NEW: Touch Controls Styles --- */
+/* --- Touch Controls Styles --- */
 #touchControls {
     display: grid; /* Use grid for a clean layout */
     grid-template-areas:
@@ -140,29 +150,32 @@ body {
 </style>
 </head>
 <body>
-<div id="gameContainer">
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div id="ui">
-        <span id="scorebox">SCORE: <span id="score">0</span></span>
-        <span style="margin-left:32px;">LIVES: <span id="lives">3</span></span>
-        <span style="margin-left:32px;">LEVEL: <span id="level">1</span></span>
-        <span style="margin-left:32px;">STATUS: <span id="status">MONITORING</span></span>
-    </div>
-    <div id="instructions">
-        Avoid Flares | Collect Emission Data<br>
-    </div>
-    <div id="splash" class="splash" style="display:none;">
-        <img id="splash-img" src="" alt="Splash">
-    </div>
-    <div id="fade" class="fade"></div>
-    <div id="musicNotice">Click anywhere to enable background music!</div>
-</div>
 
-<div id="touchControls">
-    <button id="btnUp" class="control-button">▲</button>
-    <button id="btnLeft" class="control-button">◀</button>
-    <button id="btnRight" class="control-button">▶</button>
-    <button id="btnDown" class="control-button">▼</button>
+<div id="gameWrapper">
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="ui">
+            <span id="scorebox">SCORE: <span id="score">0</span></span>
+            <span style="margin-left:32px;">LIVES: <span id="lives">3</span></span>
+            <span style="margin-left:32px;">LEVEL: <span id="level">1</span></span>
+            <span style="margin-left:32px;">STATUS: <span id="status">MONITORING</span></span>
+        </div>
+        <div id="instructions">
+            Avoid Flares | Collect Emission Data<br>
+        </div>
+        <div id="splash" class="splash">
+            <img id="splash-img" src="" alt="Splash">
+        </div>
+        <div id="fade" class="fade"></div>
+        <div id="musicNotice">Click anywhere to enable background music!</div>
+    </div>
+
+    <div id="touchControls">
+        <button id="btnUp" class="control-button">▲</button>
+        <button id="btnLeft" class="control-button">◀</button>
+        <button id="btnRight" class="control-button">▶</button>
+        <button id="btnDown" class="control-button">▼</button>
+    </div>
 </div>
 
 <audio id="bg-music" src="" preload="auto"></audio>
@@ -212,7 +225,7 @@ const fadeDiv = document.getElementById('fade');
 const music = document.getElementById('bg-music');
 const musicNotice = document.getElementById('musicNotice');
 
-// NEW: Touch Control Buttons
+// Touch Control Buttons
 const btnUp = document.getElementById('btnUp');
 const btnDown = document.getElementById('btnDown');
 const btnLeft = document.getElementById('btnLeft');
@@ -318,14 +331,14 @@ function showSplash(type) {
     else if (type === GameState.GameOver) imgSrc = ASSETS.splash.gameover;
     else if (type === GameState.Victory) imgSrc = ASSETS.splash.victory;
     splashImg.src = imgSrc;
+    // Changed to opacity control for smoother fade and to avoid display:none issues
     splashDiv.style.opacity = 1;
-    splashDiv.style.display = 'flex';
     splashDiv.style.pointerEvents = 'auto';
 }
 function hideSplash() {
     splashDiv.style.opacity = 0;
     splashDiv.style.pointerEvents = 'none';
-    setTimeout(() => { splashDiv.style.display = 'none'; }, 400);
+    setTimeout(() => { /* splashDiv.style.display = 'none'; */ }, 400); // Removed display:none here
 }
 
 // --- Fade Helper ---
@@ -347,7 +360,7 @@ function fadeToBlack(cb) {
 document.addEventListener('keydown', (e) => { keys[e.key] = true; });
 document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
-// NEW: Touch event listeners for buttons
+// Touch event listeners for buttons
 function setupButtonListeners(button, keyName) {
     button.addEventListener('touchstart', (e) => {
         e.preventDefault(); // Prevent scrolling/zooming on touch
@@ -370,10 +383,14 @@ function setupButtonListeners(button, keyName) {
     });
 }
 
-setupButtonListeners(btnUp, 'ArrowUp');
-setupButtonListeners(btnDown, 'ArrowDown');
-setupButtonListeners(btnLeft, 'ArrowLeft');
-setupButtonListeners(btnRight, 'ArrowRight');
+// Ensure buttons exist before attaching listeners
+if (btnUp && btnDown && btnLeft && btnRight) {
+    setupButtonListeners(btnUp, 'ArrowUp');
+    setupButtonListeners(btnDown, 'ArrowDown');
+    setupButtonListeners(btnLeft, 'ArrowLeft');
+    setupButtonListeners(btnRight, 'ArrowRight');
+}
+
 
 // --- Start music after first user interaction (anywhere) ---
 function ensureMusicPlaying() {
@@ -408,4 +425,39 @@ function startGame() {
     levelTransition = false;
     victory = false;
     isFadingToNextLevel = false;
-    fade
+    fadeDiv.style.opacity = 0;
+    fadeDiv.style.display = 'none';
+
+    startLevel(level);
+    gameState = GameState.Entering;
+    droneControlEnabled = false;
+    statusElement.textContent = "MONITORING";
+    updateUI();
+    ensureMusicPlaying();
+    startDroneFlyIn();
+}
+
+function startDroneFlyIn() {
+    drone.x = -40; // Off-screen start
+    drone.y = DRONE_START.y;
+    drone.targetX = DRONE_START.x;
+    drone.targetY = DRONE_START.y;
+    drone.pulseTime = 0;
+    drone.rotorSpin = 0;
+    drone.inPlume = false;
+    drone.inPlumeLastFrame = false;
+    drone.plumeFrameCounter = 0;
+}
+
+function randomInRange(a, b) { return a + Math.random() * (b - a); }
+
+function generateEmissionSources(num) {
+    let sources = [];
+    for (let i = 0; i < num; i++) {
+        let x = Math.round(140 + (i + Math.random()*0.6) * ((canvas.width-280)/num));
+        let y = Math.round(randomInRange(canvas.height/3, canvas.height*2/3));
+        sources.push({
+            x: x,
+            y: y,
+            lastEmission: Math.random() * 400,
+            emissionRate: 300 + Math.random() *
