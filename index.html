@@ -765,26 +765,30 @@
     }
 
     // --- LEVEL-UP AND TRANSITION (SIMPLIFIED & ROBUST) ---
-    function goToNextLevel() {
-        if (isFadingToNextLevel) return; // Prevent double fade!
-        isFadingToNextLevel = true;
-        fadeToBlack(() => {
-            level++;
-            // Make sure level doesn't go beyond your maximum (3 in this case)
-            if (level > 3) {
-                victory = true;
-                gameState = GameState.Victory;
-                showSplash(GameState.Victory);
-                return;
-            }
-            startLevel(level);
-            gameState = GameState.Entering;
-            droneControlEnabled = false;
-            statusElement.textContent = "MONITORING";
-            startDroneFlyIn();
-            isFadingToNextLevel = false;
-        });
-    }
+  function goToNextLevel() {
+    if (isFadingToNextLevel) return;
+    isFadingToNextLevel = true;
+    fadeToBlack(() => {
+        level++;
+        // Make sure level doesn't go beyond your maximum (3 in this case)
+        if (level > 3) {
+            victory = true;
+            gameState = GameState.Victory;
+            showSplash(GameState.Victory);
+            return;
+        }
+        // --- ADD THIS LINE TO RESET SCORE ---
+        score = 0; // Reset score for the new level's target
+        // --- END ADDITION ---
+
+        startLevel(level);
+        gameState = GameState.Entering;
+        droneControlEnabled = false;
+        statusElement.textContent = "MONITORING";
+        startDroneFlyIn();
+        isFadingToNextLevel = false;
+    });
+}
 
     function checkForLevelUp() {
         if (gameState === GameState.Playing && !levelTransition && !victory) {
