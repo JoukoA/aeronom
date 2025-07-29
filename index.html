@@ -564,7 +564,7 @@
     function updateFlares() {
         if (level >= 3) return;
         flareSpawnTimer++;
-        if (flareSpawnTimer > 200 + Math.random() * 200) {
+        if (flareSpawnTimer > 100 + Math.random() * 200) {
             spawnFlare();
             flareSpawnTimer = 0;
         }
