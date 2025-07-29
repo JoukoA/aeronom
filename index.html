@@ -565,31 +565,35 @@
             });
         }
     }
-    function updateFlares() {
-        if (level >= 3) return;
-        flareSpawnTimer++;
-        if (flareSpawnTimer > 100 + Math.random() * 200) {
-            spawnFlare();
-            flareSpawnTimer = 0;
-        }
-        flares = flares.filter(flare => {
-            if (flare.warning > 0) {
-                flare.warning--;
-            } else if (flare.burning < flare.maxBurning) {
-                flare.burning++;
-                    if (flare.burning === 0) {
+   function updateFlares() {
+    if (level >= 3) return;
+    flareSpawnTimer++;
+    if (flareSpawnTimer > 100 + Math.random() * 200) {
+        spawnFlare();
+        flareSpawnTimer = 0;
+    }
+    flares = flares.filter(flare => {
+        if (flare.warning > 0) {
+            flare.warning--;
+        } else if (flare.burning < flare.maxBurning) {
+            // --- MOVED THE SOUND CHECK HERE ---
+            if (flare.burning === 0) { // Check if it's the very first frame of burning
                 flareIgniteSound.currentTime = 0; // Rewind to start in case it's playing
                 flareIgniteSound.play();
             }
-                flare.flameLength = 40 + Math.sin(gameTime * 0.2) * 10 + Math.random() * 8;
-                const dist = Math.sqrt((drone.x - flare.x) ** 2 + (drone.y - flare.y) ** 2);
-                if (dist < 35 && droneControlEnabled) {
-                    loseLife();
-                }
+            // --- END MOVED SECTION ---
+
+            flare.burning++; // Now increment burning *after* the check
+
+            flare.flameLength = 40 + Math.sin(gameTime * 0.2) * 10 + Math.random() * 8;
+            const dist = Math.sqrt((drone.x - flare.x) ** 2 + (drone.y - flare.y) ** 2);
+            if (dist < 35 && droneControlEnabled) {
+                loseLife();
             }
-            return flare.warning > 0 || flare.burning < flare.maxBurning;
-        });
-    }
+        }
+        return flare.warning > 0 || flare.burning < flare.maxBurning;
+    });
+}
 
     function updateLevel3FlareAndPlume() {
         if (!level3Flare || !level3Plume) return;
