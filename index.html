@@ -720,7 +720,7 @@
         if (level < 3) {
             flares.forEach(flare => {
                 if (flare.warning > 0) {
-                    const pulse = Math.sin(gameTime * 0.4) * 0.5 + 0.5;
+                    const pulse = Math.sin(gameTime * 0.2) * 0.8 + 0.5;
                     ctx.fillStyle = `rgba(255, 50, 50, ${pulse * 0.8})`;
                     ctx.font = "bold 14px Courier New";
                     ctx.fillText("⚠", flare.x - 6, flare.y - 18);
