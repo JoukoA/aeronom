@@ -141,6 +141,10 @@
         "song5.mp3"
         // Add more...
     ];
+        const flareIgniteSound = new Audio('sounds/flare_ignite.mp3');
+const droneHitSound = new Audio('sounds/drone_hit.mp3');
+        flareIgniteSound.volume = 0.5; // 50% volume
+droneHitSound.volume = 0.7; // 70% volume
 
     // --- UI Elements ---
     const canvas = document.getElementById('gameCanvas');
@@ -573,6 +577,10 @@
                 flare.warning--;
             } else if (flare.burning < flare.maxBurning) {
                 flare.burning++;
+                    if (flare.burning === 0) {
+                flareIgniteSound.currentTime = 0; // Rewind to start in case it's playing
+                flareIgniteSound.play();
+            }
                 flare.flameLength = 40 + Math.sin(gameTime * 0.2) * 10 + Math.random() * 8;
                 const dist = Math.sqrt((drone.x - flare.x) ** 2 + (drone.y - flare.y) ** 2);
                 if (dist < 35 && droneControlEnabled) {
@@ -750,6 +758,8 @@
         if (gameState !== GameState.Playing || !droneControlEnabled) return;
         lives -= 1;
         updateUI();
+         droneHitSound.currentTime = 0; // Rewind the sound to the beginning
+    droneHitSound.play();         // Play the crash sound
         statusElement.textContent = "DRONE DAMAGED!";
         droneControlEnabled = false;
         drone.x = DRONE_START.x;
