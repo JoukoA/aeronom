@@ -368,7 +368,8 @@
         emissionSources = [];
         level3Flare = null;
         level3Plume = null;
-
+ // Reset the levelTransition flag explicitly when starting a new level
+    levelTransition = false;
         // Set background
         if (lvl >= 1 && lvl <= 3) {
             currentBg = backgrounds[lvl-1];
