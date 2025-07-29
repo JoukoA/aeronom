@@ -795,25 +795,34 @@
     });
 }
 
-    function checkForLevelUp() {
-        if (gameState === GameState.Playing && !levelTransition && !victory) {
-            if (level === 1 && score >= SCORE_TO_LEVEL_UP) {
-                levelTransition = true;
-                droneControlEnabled = false;
-                statusElement.textContent = "LEVEL UP!";
-            } else if (level === 2 && score >= SCORE_TO_LEVEL_UP * 2) {
-                levelTransition = true;
-                droneControlEnabled = false;
-                statusElement.textContent = "LEVEL UP!";
-            } else if (level === 3 && score >= SCORE_TO_LEVEL_UP * 3) {
-                victory = true;
-                setTimeout(() => {
-                    gameState = GameState.Victory;
-                    showSplash(GameState.Victory);
-                }, 1000);
+function checkForLevelUp() {
+    // Only check for level up if we are playing, not already transitioning, and not in victory state
+    if (gameState === GameState.Playing && !levelTransition && !victory) {
+        // Check if the current level exists in our defined level-up scores
+        if (level >= 1 && level <= LEVEL_UP_SCORES.length) {
+            const requiredScore = LEVEL_UP_SCORES[level - 1]; // -1 because array is 0-indexed
+
+            if (score >= requiredScore) {
+                // If it's the last level and we've met the score, trigger victory
+                if (level === LEVEL_UP_SCORES.length) {
+                    victory = true;
+                    // Provide some visual feedback before the splash screen
+                    statusElement.textContent = "MISSION COMPLETE!";
+                    droneControlEnabled = false; // Disable drone control immediately
+                    setTimeout(() => {
+                        gameState = GameState.Victory;
+                        showSplash(GameState.Victory);
+                    }, 1000); // Short delay before showing victory splash
+                } else {
+                    // Otherwise, trigger a regular level transition
+                    levelTransition = true;
+                    droneControlEnabled = false;
+                    statusElement.textContent = "LEVEL UP!";
+                }
             }
         }
     }
+}
 
     // In your game loop's Playing state, handle the transition simply:
     function handleLevelTransition() {
