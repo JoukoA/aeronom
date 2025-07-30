@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=800, initial-scale=1.0">
+<title>AERONOM</title>
+<style>
+body {
+margin: 0;
+padding: 0;
+background: #1a1a2e;
+display: flex;
+justify-content: center;
+align-items: center;
+min-height: 100vh;
+font-family: 'Courier New', monospace;
+color: #00ff00;
+}
+#gameContainer {
+position: relative;
+background: linear-gradient(to bottom, #16213e 0%, #0f3460 50%, #1a1a2e 100%);
+border: 3px solid #00ff00;
+box-shadow: 0 0 20px #00ff00;
+}
+#gameCanvas {
+display: block;
+image-rendering: pixelated;
+image-rendering: -moz-crisp-edges;
+image-rendering: crisp-edges;
+}
+#ui {
+position: absolute;
+top: 10px;
+left: 0;
+width: 100%;
+text-align: center;
+color: #00ff00;
+font-size: 18px;
+text-shadow: 2px 2px 0px #000000;
+z-index: 2;
+pointer-events: none;
+user-select: none;
+}
+#instructions {
+position: absolute;
+bottom: 10px;
+left: 10px;
+color: #00ff00;
+font-size: 12px;
+text-shadow: 1px 1px 0px #000000;
+z-index: 2;
+pointer-events: none;
+user-select: none;
+}
+.splash {
+position: absolute;
+top: 0;
+left: 0;
+width: 800px;
+height: 600px;
+background: rgba(0,0,0,0.85);
+z-index: 10;
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+transition: opacity 0.4s;
+}
+.splash img {
+max-width: 90%;
+max-height: 90%;
+display: block;
+margin: 0 auto;
+}
+.fade {
+pointer-events: none;
+position: absolute;
+left: 0; top: 0;
+width: 800px; height: 600px;
+z-index: 9;
+background: #000;
+opacity: 0;
+transition: opacity 1s;
+}
+#musicNotice {
+position: absolute;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+color: #00ff00;
+background: rgba(0,0,0,0.8);
+border: 2px solid #00ff00;
+padding: 24px;
+font-size: 1.3em;
+z-index: 20;
+text-shadow: 2px 2px 0 #000;
+display: none;
+}
+</style>
+</head>
+<body>
+<div id="gameContainer">
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="ui">
+    <span id="player1-scorebox">P1 SCORE: <span id="score1">0</span></span>
+    <span style="margin-left:32px;">P1 LIVES: <span id="lives1">3</span></span>
+    <span style="margin-left:32px;">P2 SCORE: <span id="score2">0</span></span>
+    <span style="margin-left:32px;">P2 LIVES: <span id="lives2">3</span></span>
+    <br>
+    <span style="margin-top:5px; display:inline-block;">LEVEL: <span id="level">1</span></span>
+    <span style="margin-left:32px; margin-top:5px; display:inline-block;">STATUS: <span id="status">MONITORING</span></span>
+</div>
+<div id="instructions">
+    P1: Arrow Keys | P2: WSAD | Avoid Flares | Collect Emission Data
+</div>
+<div id="splash" class="splash" style="display:none;">
+<img id="splash-img" src="" alt="Splash">
+</div>
+<div id="fade" class="fade"></div>
+<div id="musicNotice">Click anywhere to enable background music!</div>
+</div>
+<audio id="bg-music" src="" preload="auto"></audio>
+<script>
+// --- Asset paths ---
+const ASSETS = {
+splash: {
+start: 'splash_start2.png',
+gameover: 'splash_gameover.png',
+victoryA: 'splash_victoryA.png',
+victoryB: 'splash_victoryB.png'
+},
+bg: [
+'refinery_background.png',
+'level2_background.png',
+'level3_background.png'
+]
+};
+
+// --- Music files (edit this list to match your mp3 files) ---
+const MUSIC_FILES = [
+"song1.mp3",
+"song2.mp3",
+"song3.mp3",
+"song4.mp3",
+"song5.mp3",
+"song6.mp3",
+"song7.mp3"
+// Add more...
+];
+
+const flareIgniteSound = new Audio('flare_ignite.mp3');
+const droneHitSound = new Audio('drone_hit.mp3');
+flareIgniteSound.volume = 0.1;
+droneHitSound.volume = 0.2;
+
+
+// --- UI Elements ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// Updated UI elements for two players
+const score1Element = document.getElementById('score1');
+const lives1Element = document.getElementById('lives1');
+const score2Element = document.getElementById('score2');
+const lives2Element = document.getElementById('lives2');
+
+const levelElement = document.getElementById('level');
+const statusElement = document.getElementById('status');
+const splashDiv = document.getElementById('splash');
+const splashImg = document.getElementById('splash-img');
+const fadeDiv = document.getElementById('fade');
+const music = document.getElementById('bg-music');
+const musicNotice = document.getElementById('musicNotice');
+
+// --- Game States ---
+const GameState = {
+SplashStart: 'SplashStart',
+Entering: 'Entering',
+Playing: 'Playing',
+Respawning: 'Respawning',
+LevelTransition: 'LevelTransition',
+GameOver: 'GameOver',
+Victory: 'Victory'
+};
+let gameState = GameState.SplashStart;
+
+// --- Game Variables ---
+let level = 1;
+let lives1 = 3; // Player 1 lives
+let lives2 = 3; // Player 2 lives
+let score1 = 0; // Player 1 score
+let score2 = 0; // Player 2 score
+
+let gameTime = 0;
+let keys = {};
+let windDirection = 1;
+let windSpeed = 0.5;
+
+let levelTransition = false;
+let victory = false;
+let isFadingToNextLevel = false;
+
+// Doubled score requirements for level up
+const SCORE_TO_LEVEL_UP_BASE = 1000;
+const LEVEL_UP_SCORES = [
+    SCORE_TO_LEVEL_UP_BASE * 2,  // For Level 1 to Level 2 (doubled)
+    SCORE_TO_LEVEL_UP_BASE * 4,  // For Level 2 to Level 3 (doubled)
+    SCORE_TO_LEVEL_UP_BASE * 6   // For Level 3 to Victory (doubled)
+];
+
+// --- Drones ---
+const DRONE_START = {x: 100, y: 300};
+
+// Player 1 Drone
+const drone1 = {
+    x: -40, // Off-screen start
+    y: DRONE_START.y - 50, // Slightly different start for visual separation
+    targetX: DRONE_START.x,
+    targetY: DRONE_START.y - 50,
+    width: 32,
+    height: 24,
+    inPlume: false,
+    pulseTime: 0,
+    rotorSpin: 0,
+    color: 'green', // Default color
+    controlEnabled: false, // Initial state
+    respawning: false // New: flag for respawn state
+};
+
+// Player 2 Drone
+const drone2 = {
+    x: -40, // Off-screen start
+    y: DRONE_START.y + 50, // Slightly different start
+    targetX: DRONE_START.x,
+    targetY: DRONE_START.y + 50,
+    width: 32,
+    height: 24,
+    inPlume: false,
+    pulseTime: 0,
+    rotorSpin: 0,
+    color: 'blue', // Blue color for player 2
+    controlEnabled: false, // Initial state
+    respawning: false // New: flag for respawn state
+};
+
+
+// --- Backgrounds ---
+const backgrounds = [new Image(), new Image(), new Image()];
+backgrounds[0].src = ASSETS.bg[0];
+backgrounds[1].src = ASSETS.bg[1];
+backgrounds[2].src = ASSETS.bg[2];
+let currentBg = backgrounds[0];
+
+// --- Music ---
+let currentMusicIndex = -1;
+music.volume = 0.4;
+music.loop = false;
+
+function pickRandomMusicIndex(excludeIndex = -1) {
+if (MUSIC_FILES.length < 2) return 0;
+let idx;
+do {
+idx = Math.floor(Math.random() * MUSIC_FILES.length);
+} while (idx === excludeIndex);
+return idx;
+}
+function playRandomMusic() {
+if (MUSIC_FILES.length === 0) return;
+const idx = pickRandomMusicIndex(currentMusicIndex);
+currentMusicIndex = idx;
+music.pause();
+music.src = MUSIC_FILES[idx];
+music.load();
+music.play().catch(() => {
+musicNotice.style.display = "block";
+});
+}
+music.onended = function() {
+playRandomMusic();
+};
+
+// --- Emission Sources and Flares ---
+let emissionSources = [];
+let plumes = [];
+let flares = [];
+let flareSpawnTimer = 0;
+
+// --- Level 3 special objects ---
+let level3Flare = null, level3Plume = null;
+
+// --- Splash Helper ---
+function showSplash(type) {
+let imgSrc = '';
+if (type === GameState.SplashStart) imgSrc = ASSETS.splash.start;
+else if (type === GameState.GameOver) imgSrc = ASSETS.splash.gameover;
+else if (type === GameState.Victory) {
+    // Choose Victory Splash A or B based on who has higher score
+    if (score1 >= score2) {
+        imgSrc = ASSETS.splash.victoryA;
+    } else {
+        imgSrc = ASSETS.splash.victoryB;
+    }
+}
+splashImg.src = imgSrc;
+splashDiv.style.opacity = 1;
+splashDiv.style.display = 'flex';
+splashDiv.style.pointerEvents = 'auto';
+}
+function hideSplash() {
+splashDiv.style.opacity = 0;
+splashDiv.style.pointerEvents = 'none';
+setTimeout(() => { splashDiv.style.display = 'none'; }, 400);
+}
+
+// --- Fade Helper ---
+function fadeToBlack(cb) {
+fadeDiv.style.opacity = 0;
+fadeDiv.style.display = 'block';
+setTimeout(()=>{fadeDiv.style.transition='opacity 1s';fadeDiv.style.opacity=1;}, 20);
+setTimeout(()=>{
+fadeDiv.style.transition='opacity 0.6s';
+cb && cb();
+setTimeout(()=>{
+fadeDiv.style.opacity=0;
+setTimeout(()=>{fadeDiv.style.display='none';}, 600);
+}, 1200);
+}, 1200);
+}
+
+// --- Input ---
+document.addEventListener('keydown', (e) => { keys[e.key] = true; });
+document.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+// --- Start music after first user interaction (anywhere) ---
+function ensureMusicPlaying() {
+if (music.paused) {
+playRandomMusic();
+musicNotice.style.display = "none";
+}
+}
+window.addEventListener("click", ensureMusicPlaying, {once: true});
+window.addEventListener("keydown", ensureMusicPlaying, {once: true});
+window.addEventListener("touchstart", ensureMusicPlaying, {once: true});
+music.addEventListener('play', () => { musicNotice.style.display = "none"; });
+
+// --- Splash click handler ---
+splashDiv.addEventListener('click', function() {
+if (
+gameState === GameState.SplashStart ||
+gameState === GameState.GameOver ||
+gameState === GameState.Victory
+) {
+hideSplash();
+setTimeout(() => startGame(), 200);
+}
+});
+
+// --- Game Start/Reset ---
+function startGame() {
+level = 1;
+lives1 = 3;
+lives2 = 3;
+score1 = 0;
+score2 = 0;
+gameTime = 0;
+levelTransition = false;
+victory = false;
+isFadingToNextLevel = false;
+fadeDiv.style.opacity = 0;
+fadeDiv.style.display = 'none';
+
+startLevel(level);
+gameState = GameState.Entering;
+// Individual drone control flags
+drone1.controlEnabled = false;
+drone2.controlEnabled = false;
+drone1.respawning = false; // Reset respawn state
+drone2.respawning = false; // Reset respawn state
+statusElement.textContent = "MONITORING";
+updateUI();
+ensureMusicPlaying();
+startDroneFlyIn(); // This will handle both drones flying in
+}
+
+function startDroneFlyIn() {
+    // Reset positions and state for both drones
+    drone1.x = -40;
+    drone1.y = DRONE_START.y - 50;
+    drone1.targetX = DRONE_START.x;
+    drone1.targetY = DRONE_START.y - 50;
+    drone1.pulseTime = 0;
+    drone1.rotorSpin = 0;
+    drone1.inPlume = false;
+    drone1.controlEnabled = false; // Ensure control is off during fly-in
+    drone1.respawning = false;
+
+    drone2.x = -40;
+    drone2.y = DRONE_START.y + 50;
+    drone2.targetX = DRONE_START.x;
+    drone2.targetY = DRONE_START.y + 50;
+    drone2.pulseTime = 0;
+    drone2.rotorSpin = 0;
+    drone2.inPlume = false;
+    drone2.controlEnabled = false; // Ensure control is off during fly-in
+    drone2.respawning = false;
+}
+
+function randomInRange(a, b) { return a + Math.random() * (b - a); }
+
+function generateEmissionSources(num) {
+let sources = [];
+for (let i = 0; i < num; i++) {
+let x = Math.round(140 + (i + Math.random()*0.6) * ((canvas.width-280)/num));
+let y = Math.round(randomInRange(canvas.height/3, canvas.height*2/3));
+sources.push({
+x: x,
+y: y,
+lastEmission: Math.random() * 400,
+emissionRate: 300 + Math.random() * 200
+});
+}
+return sources;
+}
+
+function startLevel(lvl) {
+plumes = [];
+flares = [];
+flareSpawnTimer = 0;
+emissionSources = [];
+level3Flare = null;
+level3Plume = null;
+levelTransition = false;
+
+if (lvl >= 1 && lvl <= 3) {
+currentBg = backgrounds[lvl-1];
+}
+
+if (lvl === 1 || lvl === 2) {
+emissionSources = generateEmissionSources(4);
+} else if (lvl === 3) {
+level3Flare = {
+x: 400, y: 200,
+baseW: 80, baseH: 100,
+flameLength: 100,
+burning: true
+};
+level3Plume = {
+x: 400, y: 320,
+radius: 40,
+opacity: 0.8,
+drift: 0,
+vx: 1.2, vy: -0.2,
+t: 0
+};
+}
+updateUI();
+}
+
+function updateUI() {
+score1Element.textContent = Math.floor(score1);
+lives1Element.textContent = lives1;
+score2Element.textContent = Math.floor(score2);
+lives2Element.textContent = lives2;
+levelElement.textContent = level;
+}
+
+// Unified drone update function
+function updateDrone(drone, playerNum) {
+    if (!drone.controlEnabled || drone.respawning) return; // Don't update if respawning
+    const speed = 2.5;
+    const smoothing = 0.12;
+
+    // Player 1 controls (Arrow Keys)
+    if (playerNum === 1) {
+        if (keys['ArrowLeft']) drone.targetX -= speed;
+        if (keys['ArrowRight']) drone.targetX += speed;
+        if (keys['ArrowUp']) drone.targetY -= speed;
+        if (keys['ArrowDown']) drone.targetY += speed;
+    }
+    // Player 2 controls (WSAD)
+    else if (playerNum === 2) {
+        if (keys['a']) drone.targetX -= speed;
+        if (keys['d']) drone.targetX += speed;
+        if (keys['w']) drone.targetY -= speed;
+        if (keys['s']) drone.targetY += speed;
+    }
+
+    drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
+    drone.targetY = Math.max(20, Math.min(canvas.height - 80, drone.targetY));
+
+    drone.x += (drone.targetX - drone.x) * smoothing;
+    drone.y += (drone.targetY - drone.y) * smoothing;
+
+    let inPlumeThisFrame = false;
+    if (level < 3) {
+        for (let plume of plumes) {
+            const dist = Math.sqrt((drone.x - plume.x) ** 2 + (drone.y - plume.y) ** 2);
+            if (dist < plume.radius * 1.1) {
+                inPlumeThisFrame = true;
+                break;
+            }
+        }
+    } else if (level === 3 && level3Plume) {
+        const dist = Math.sqrt((drone.x - level3Plume.x) ** 2 + (drone.y - level3Plume.y) ** 2);
+        if (dist < level3Plume.radius * 1.1) {
+            inPlumeThisFrame = true;
+        }
+    }
+
+    if (inPlumeThisFrame) {
+        drone.inPlume = true;
+        // Score accumulates 20% slower: from 2 to 1.6 per frame
+        if (playerNum === 1) score1 += 1.6;
+        else if (playerNum === 2) score2 += 1.6;
+    } else {
+        drone.inPlume = false;
+    }
+
+    if (drone.inPlume) drone.pulseTime += 0.2;
+}
+
+
+function updateDroneFlyIn() {
+    const flySpeed = 6;
+    let drone1Finished = false;
+    let drone2Finished = false;
+
+    // Update drone 1
+    if (drone1.x < DRONE_START.x) {
+        drone1.x += flySpeed;
+        if (drone1.x >= DRONE_START.x) {
+            drone1.x = DRONE_START.x;
+            drone1Finished = true;
+        }
+    } else {
+        drone1Finished = true;
+    }
+
+    // Update drone 2
+    if (drone2.x < DRONE_START.x) {
+        drone2.x += flySpeed;
+        if (drone2.x >= DRONE_START.x) {
+            drone2.x = DRONE_START.x;
+            drone2Finished = true;
+        }
+    } else {
+        drone2Finished = true;
+    }
+
+    // If both drones have finished flying in
+    if (drone1Finished && drone2Finished) {
+        gameState = GameState.Playing;
+        if (lives1 > 0) drone1.controlEnabled = true; // Only enable if lives > 0
+        if (lives2 > 0) drone2.controlEnabled = true; // Only enable if lives > 0
+    }
+}
+
+// Unified drone drawing function
+function drawPixelDrone(drone) {
+    if (drone.respawning && Math.floor(gameTime / 10) % 2 === 0) {
+        return; // Blink during respawn
+    }
+
+    ctx.save();
+    ctx.translate(drone.x, drone.y);
+
+    // Pulse effect
+    if (drone.inPlume) {
+        const pulse = Math.sin(drone.pulseTime) * 0.5 + 0.5;
+        // P1 pulses green, P2 pulses red
+        ctx.shadowColor = (drone.color === 'green') ? '#00ff00' : '#ff0000';
+        ctx.shadowBlur = 15 * pulse;
+    }
+
+    // Base body color - always gray
+    ctx.fillStyle = '#4a4a4a';
+    ctx.fillRect(-12, -6, 24, 12);
+    ctx.fillStyle = '#666666';
+    ctx.fillRect(-10, -4, 20, 8);
+
+    // Central camera/sensor
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(-3, -2, 6, 4);
+
+    // LED light based on drone color
+    ctx.fillStyle = (drone.color === 'green') ? '#00ff00' : '#0000ff';
+    ctx.fillRect(-1, -1, 2, 2);
+
+    // Landing gear
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(-8, 6, 2, 4);
+    ctx.fillRect(6, 6, 2, 4);
+
+    // Rotor arms
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(-16, -8, 8, 2);
+    ctx.fillRect(8, -8, 8, 2);
+    ctx.fillRect(-16, 6, 8, 2);
+    ctx.fillRect(8, 6, 8, 2);
+
+    // Rotors with spinning effect
+    const rotorPositions = [
+        {x: -12, y: -7}, {x: 12, y: -7},
+        {x: -12, y: 7}, {x: 12, y: 7}
+    ];
+    drone.rotorSpin += 0.8;
+    rotorPositions.forEach((pos, i) => {
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(-2, -2, 4, 4);
+        ctx.strokeStyle = 'rgba(85, 85, 85, 0.6)';
+        ctx.lineWidth = 2;
+        const angle = drone.rotorSpin + (i * Math.PI / 2);
+        for (let j = 0; j < 4; j++) {
+            ctx.save();
+            ctx.rotate(angle + (j * Math.PI / 2));
+            ctx.beginPath();
+            ctx.moveTo(-6, 0);
+            ctx.lineTo(6, 0);
+            ctx.stroke();
+            ctx.restore();
+        }
+        ctx.restore();
+    });
+    ctx.restore();
+}
+
+function updateEmissions() {
+if (level >= 3) return;
+if (Math.random() < 0.002) {
+windDirection = Math.random() > 0.5 ? 1 : -1;
+windSpeed = 0.3 + Math.random() * 0.4;
+}
+emissionSources.forEach(source => {
+source.lastEmission++;
+if (source.lastEmission > source.emissionRate && plumes.length < 2) {
+plumes.push({
+x: source.x,
+y: source.y,
+startX: source.x,
+radius: 20,
+life: 400 + Math.random() * 100,
+maxLife: 400,
+opacity: 0.7,
+drift: 0
+});
+source.lastEmission = 0;
+source.emissionRate = 400 + Math.random() * 300;
+}
+});
+plumes = plumes.filter(plume => {
+plume.life--;
+plume.opacity = (plume.life / plume.maxLife) * 0.7;
+plume.drift += windSpeed * windDirection;
+plume.x = plume.startX + plume.drift;
+plume.radius += 0.15;
+return plume.life > 0;
+});
+}
+
+function spawnFlare() {
+if (emissionSources.length > 0) {
+const source = emissionSources[Math.floor(Math.random() * emissionSources.length)];
+flares.push({
+x: source.x,
+y: source.y,
+warning: 90,
+burning: 0,
+maxBurning: 100,
+flameLength: 0
+});
+}
+}
+function updateFlares() {
+if (level >= 3) return;
+flareSpawnTimer++;
+if (flareSpawnTimer > 100 + Math.random() * 200) {
+spawnFlare();
+flareSpawnTimer = 0;
+}
+flares = flares.filter(flare => {
+if (flare.warning > 0) {
+flare.warning--;
+} else if (flare.burning < flare.maxBurning) {
+if (flare.burning === 0) {
+flareIgniteSound.currentTime = 0;
+flareIgniteSound.play();
+}
+flare.burning++;
+
+flare.flameLength = 40 + Math.sin(gameTime * 0.2) * 10 + Math.random() * 8;
+// Check collision for both drones
+const dist1 = Math.sqrt((drone1.x - flare.x) ** 2 + (drone1.y - flare.y) ** 2);
+const dist2 = Math.sqrt((drone2.x - flare.x) ** 2 + (drone2.y - flare.y) ** 2);
+
+if (dist1 < 35 && drone1.controlEnabled && !drone1.respawning) { // Add !drone1.respawning
+    loseLife(drone1, 1, 'flare');
+}
+if (dist2 < 35 && drone2.controlEnabled && !drone2.respawning) { // Add !drone2.respawning
+    loseLife(drone2, 2, 'flare');
+}
+}
+return flare.warning > 0 || flare.burning < flare.maxBurning;
+});
+}
+
+function updateLevel3FlareAndPlume() {
+if (!level3Flare || !level3Plume) return;
+level3Plume.t += 0.008;
+const t = level3Plume.t;
+level3Plume.x = 400 + Math.sin(t * 0.8) * 180 + Math.sin(t * 0.05) * 30;
+level3Plume.y = 150 + Math.sin(t * 2.7) * 60 + Math.cos(t * 0.35) * 15;
+level3Plume.radius = 40 + 18 * Math.abs(Math.sin(t * 1.4));
+level3Plume.opacity = 0.8 + 0.15 * Math.sin(t * 1.2);
+
+if (level === 3 && level3Flare) {
+const flareHitboxRadius = 55;
+// Check collision for both drones
+const dist1 = Math.sqrt(
+(drone1.x - level3Flare.x) ** 2 +
+(drone1.y - (level3Flare.y - level3Flare.flameLength * 0.6)) ** 2
+);
+const dist2 = Math.sqrt(
+(drone2.x - level3Flare.x) ** 2 +
+(drone2.y - (level3Flare.y - level3Flare.flameLength * 0.6)) ** 2
+);
+
+if (dist1 < flareHitboxRadius && drone1.controlEnabled && !drone1.respawning) {
+    loseLife(drone1, 1, 'flare');
+}
+if (dist2 < flareHitboxRadius && drone2.controlEnabled && !drone2.respawning) {
+    loseLife(drone2, 2, 'flare');
+}
+}
+}
+
+function drawBackground() {
+if (currentBg && currentBg.complete) {
+ctx.drawImage(currentBg, 0, 0, canvas.width, canvas.height);
+} else {
+// Fallback background
+ctx.fillStyle = "#202040";
+ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+// Draw emission sources for levels 1 and 2
+if (level < 3) {
+ctx.fillStyle = '#666666';
+emissionSources.forEach(source => {
+ctx.fillRect(source.x - 2, source.y - 6, 4, 6);
+ctx.fillStyle = '#888888';
+ctx.fillRect(source.x - 1, source.y - 4, 2, 4);
+ctx.fillStyle = '#666666';
+});
+}
+}
+
+function drawPlumes() {
+if (level < 3) {
+plumes.forEach(plume => {
+ctx.save();
+ctx.globalAlpha = plume.opacity;
+const grayColors = ['#b0b0b0', '#868686', '#666666', '#444444'];
+for (let r = 0; r < 4; r++) {
+ctx.fillStyle = grayColors[r];
+ctx.beginPath();
+ctx.ellipse(
+plume.x + plume.drift/3,
+plume.y,
+(plume.radius * 1.5) * (1 - r*0.18),
+(plume.radius * 0.8) * (1 - r*0.18),
+0, 0, Math.PI * 2
+);
+ctx.fill();
+}
+for (let i = 0; i < 6; i++) {
+const angle = (i / 6) * Math.PI * 2;
+const distance = plume.radius * (0.8 + Math.random() * 0.4);
+const px = plume.x + plume.drift/3 + Math.cos(angle) * distance;
+const py = plume.y + Math.sin(angle) * distance * 0.6;
+ctx.fillStyle = `rgba(102, 102, 102, ${0.2 * plume.opacity})`;
+ctx.fillRect(px - 1, py - 1, 2, 2);
+}
+ctx.restore();
+});
+} else if (level3Plume) {
+const plume = level3Plume;
+ctx.save();
+ctx.globalAlpha = plume.opacity;
+const grayColors = ['#bbbbbb', '#bbbbbb', '#888888', '#444444'];
+for (let r = 0; r < 4; r++) {
+ctx.fillStyle = grayColors[r];
+ctx.beginPath();
+ctx.ellipse(
+plume.x,
+plume.y,
+(plume.radius * 2.1) * (1 - r*0.17),
+(plume.radius * 1.2) * (1 - r*0.17),
+0, 0, Math.PI * 2
+);
+ctx.fill();
+}
+for (let i = 0; i < 8; i++) {
+const angle = (i / 8) * Math.PI * 2;
+const distance = plume.radius * (1 + Math.random() * 0.7);
+const px = plume.x + Math.cos(angle) * distance * 1.35;
+const py = plume.y + Math.sin(angle) * distance * 0.9;
+ctx.fillStyle = `rgba(180,180,180,${0.16 * plume.opacity})`;
+ctx.fillRect(px-1,py-1,2,2);
+}
+ctx.restore();
+}
+}
+
+function drawPixelFlame(ctx, x, y, baseLen, intensity, style = 'normal') {
+const palettes = [
+['#fffbe0', '#ffd700', '#ffb347', '#ff6600', '#a52a2a'],
+['#ffffcc', '#ffe066', '#ffb347', '#ff6600', '#d2691e'],
+['#fffbe0', '#ffd700', '#ffb347', '#ff6600', '#ff3300']
+];
+const palette = palettes[Math.floor(Math.random()*palettes.length)];
+let len = baseLen + Math.round(Math.random()*intensity-0.5*intensity);
+let w = 13 + Math.round(Math.random()*4);
+for (let layer = 0; layer < 5; layer++) {
+ctx.save();
+ctx.globalAlpha = 0.85 - 0.14*layer;
+ctx.fillStyle = palette[layer];
+let lx = x;
+let ly = y - layer*len*0.22 + Math.round(Math.sin(gameTime*0.2+layer)*2);
+let lw = w - layer*2;
+let lh = len - layer*10 + Math.round(Math.random()*2);
+for (let j = 0; j < 3+layer; j++) {
+let ox = Math.round((Math.random()-0.5)*lw*0.25);
+let oy = Math.round((Math.random()-0.5)*lh*0.15);
+ctx.fillRect(lx - lw/2 + ox, ly - lh/2 + oy, lw, lh);
+}
+ctx.restore();
+}
+for (let s=0; s<6; s++) {
+let sx = x + (Math.random()-0.5)*w*0.8;
+let sy = y - baseLen*0.6 + Math.random()*10;
+ctx.globalAlpha = 0.7;
+ctx.fillStyle = "#fffbe0";
+ctx.fillRect(sx, sy, 2, 2);
+}
+ctx.globalAlpha = 1.0;
+}
+
+function drawFlares() {
+if (level < 3) {
+flares.forEach(flare => {
+if (flare.warning > 0) {
+const pulse = Math.sin(gameTime * 0.2) * 0.8 + 0.5;
+ctx.fillStyle = `rgba(255, 50, 50, ${pulse * 0.8})`;
+ctx.font = "bold 14px Courier New";
+ctx.fillText("⚠", flare.x - 6, flare.y - 18);
+} else if (flare.burning > 0) {
+ctx.fillStyle = "#2b2b2b";
+ctx.fillRect(flare.x-3, flare.y-2, 6, 4);
+drawPixelFlame(ctx, flare.x, flare.y-11, flare.flameLength, 40);
+if (Math.random() < 0.03) {
+ctx.font = "bold 12px Courier New";
+ctx.fillStyle = "#ffff33";
+ctx.fillText("WHOOSH", flare.x + 20, flare.y - 10 + Math.random() * 4);
+}
+}
+});
+} else if (level3Flare) {
+const flare = level3Flare;
+ctx.save();
+ctx.translate(flare.x, flare.y);
+ctx.fillStyle = "#343434";
+ctx.fillRect(-12, -8, 24, 16);
+drawPixelFlame(ctx, 0, -40, flare.flameLength, 40);
+ctx.restore();
+}
+}
+
+// Modified loseLife to handle specific drone and player, and collision type
+function loseLife(drone, playerNum, collisionType = 'flare') {
+    // Only process if game is playing and drone is not already respawning
+    if (gameState !== GameState.Playing || drone.respawning) return;
+
+    drone.respawning = true; // Set respawning flag
+    droneHitSound.currentTime = 0; // Rewind the sound
+    droneHitSound.play();      // Play the crash sound
+
+    if (playerNum === 1) {
+        lives1 -= 1;
+        statusElement.textContent = `P1 DRONE DAMAGED!`;
+    } else if (playerNum === 2) {
+        lives2 -= 1;
+        statusElement.textContent = `P2 DRONE DAMAGED!`;
+    }
+    updateUI();
+
+    // Temporarily disable control for the hit drone
+    drone.controlEnabled = false;
+
+    // Check for game over first (if both drones are out of lives)
+    if (lives1 <= 0 && lives2 <= 0) {
+        // If both are out, game over. No respawn needed.
+        setTimeout(() => {
+            gameState = GameState.GameOver;
+            showSplash(GameState.GameOver);
+        }, 900);
+        return; // Exit function, no respawn for this drone
+    }
+
+    // Respawn logic
+    // A drone should only respawn if its own lives are > 0 AND the OTHER player still has lives
+    const otherPlayerLives = (playerNum === 1) ? lives2 : lives1;
+
+    if (lives1 <= 0 && playerNum === 1) {
+        statusElement.textContent = `P1 DRONE DOWN!`; // Player 1 is out
+    }
+    if (lives2 <= 0 && playerNum === 2) {
+        statusElement.textContent = `P2 DRONE DOWN!`; // Player 2 is out
+    }
+
+
+    if (drone.respawning && (playerNum === 1 && lives1 > 0 || playerNum === 2 && lives2 > 0)) {
+        // Only reset position and re-enable if current drone has lives left
+        setTimeout(() => {
+            drone.x = DRONE_START.x;
+            drone.y = (playerNum === 1) ? DRONE_START.y - 50 : DRONE_START.y + 50;
+            drone.targetX = drone.x;
+            drone.targetY = drone.y;
+            drone.pulseTime = 0;
+            drone.respawning = false; // Clear respawning flag
+            // Re-enable control only if its own lives are > 0 AND the game is still playing
+            if (lives1 > 0 && lives2 > 0 && gameState === GameState.Playing) { // Both players must still be in the game
+                 drone.controlEnabled = true;
+            } else if (lives1 > 0 && playerNum === 1 && lives2 <=0 && gameState === GameState.Playing) {
+                // If P1 has lives, and P2 is out, P1 can still play
+                 drone.controlEnabled = true;
+            } else if (lives2 > 0 && playerNum === 2 && lives1 <=0 && gameState === GameState.Playing) {
+                // If P2 has lives, and P1 is out, P2 can still play
+                 drone.controlEnabled = true;
+            }
+
+
+            // Update status based on who is still active
+            if (lives1 > 0 && lives2 > 0) {
+                statusElement.textContent = "MONITORING";
+            } else if (lives1 > 0) {
+                statusElement.textContent = "P1 SOLO MONITORING";
+            } else if (lives2 > 0) {
+                statusElement.textContent = "P2 SOLO MONITORING";
+            } else {
+                 statusElement.textContent = "MISSION FAILED"; // Should be covered by game over already
+            }
+
+        }, 1000); // Respawn after 1 second
+    } else {
+        // If a drone is out of lives, make sure it stays disabled
+        drone.controlEnabled = false;
+        drone.respawning = false; // Ensure respawning flag is reset even if no respawn occurs
+    }
+}
+
+
+// --- LEVEL-UP AND TRANSITION (SIMPLIFIED & ROBUST) ---
+function goToNextLevel() {
+if (isFadingToNextLevel) return;
+isFadingToNextLevel = true;
+fadeToBlack(() => {
+level++;
+// Make sure level doesn't go beyond your maximum (3 in this case)
+if (level > 3) {
+victory = true;
+gameState = GameState.Victory;
+showSplash(GameState.Victory); // Will choose A or B internally
+return;
+}
+// Reset scores for the new level's target, but keep cumulative for final victory
+score1 = 0;
+score2 = 0;
+
+startLevel(level);
+gameState = GameState.Entering;
+// Re-enable controls if they have lives
+drone1.controlEnabled = (lives1 > 0);
+drone2.controlEnabled = (lives2 > 0);
+drone1.respawning = false; // Reset respawn state
+drone2.respawning = false; // Reset respawn state
+statusElement.textContent = "MONITORING";
+startDroneFlyIn();
+isFadingToNextLevel = false;
+});
+}
+
+function checkForLevelUp() {
+// Only check for level up if we are playing, not already transitioning, and not in victory state
+if (gameState === GameState.Playing && !levelTransition && !victory) {
+    // We need a combined score for level progression
+    const combinedScore = score1 + score2;
+
+    if (level >= 1 && level <= LEVEL_UP_SCORES.length) {
+        const requiredScore = LEVEL_UP_SCORES[level - 1]; // -1 because array is 0-indexed
+
+        if (combinedScore >= requiredScore) {
+            // If it's the last level and we've met the score, trigger victory
+            if (level === LEVEL_UP_SCORES.length) {
+                victory = true;
+                statusElement.textContent = "MISSION COMPLETE!";
+                drone1.controlEnabled = false;
+                drone2.controlEnabled = false;
+                setTimeout(() => {
+                    gameState = GameState.Victory;
+                    showSplash(GameState.Victory);
+                }, 1000);
+            } else {
+                // Otherwise, trigger a regular level transition
+                levelTransition = true;
+                drone1.controlEnabled = false;
+                drone2.controlEnabled = false;
+                statusElement.textContent = "LEVEL UP!";
+            }
+        }
+    }
+}
+}
+
+// In your game loop's Playing state, handle the transition simply:
+function handleLevelTransition() {
+if (!levelTransition) return;
+// Move both drones off-screen to the right
+drone1.targetX = canvas.width + 60;
+drone2.targetX = canvas.width + 60;
+
+const speed = 4;
+drone1.x += speed;
+drone2.x += speed;
+
+if (drone1.x > canvas.width + 40 && drone2.x > canvas.width + 40) {
+levelTransition = false;
+goToNextLevel();
+}
+}
+
+// NEW: Drone-to-drone collision detection
+function checkDroneCollision() {
+    // Only check if both drones are enabled and not respawning
+    if (!drone1.controlEnabled || !drone2.controlEnabled || drone1.respawning || drone2.respawning) return false;
+
+    const dx = drone1.x - drone2.x;
+    const dy = drone1.y - drone2.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Approximate collision radius for drones (adjust as needed)
+    const collisionRadius = (drone1.width / 2 + drone2.width / 2) * 0.7; // 70% of combined half-widths
+
+    if (distance < collisionRadius) {
+        // Collision detected! Both drones lose a life.
+        // It's important to prevent recursive calls if loseLife triggers checkDroneCollision again.
+        // The !drone.respawning check in loseLife helps with this.
+        loseLife(drone1, 1, 'drone_collision');
+        loseLife(drone2, 2, 'drone_collision');
+        return true;
+    }
+    return false;
+}
+
+
+function gameLoop() {
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+if (gameState === GameState.Playing) {
+gameTime++;
+drawBackground();
+
+// Update both drones
+if (!levelTransition) {
+    updateDrone(drone1, 1);
+    updateDrone(drone2, 2);
+    if (level < 3) {
+        updateEmissions();
+        updateFlares();
+    } else {
+        updateLevel3FlareAndPlume();
+    }
+    checkDroneCollision(); // Call the new collision check here!
+}
+
+drawPlumes();
+drawFlares();
+
+// Draw both drones (draw last to ensure they are on top)
+drawPixelDrone(drone1);
+drawPixelDrone(drone2);
+
+if (levelTransition) handleLevelTransition();
+updateUI();
+checkForLevelUp();
+} else if (gameState === GameState.Entering) {
+gameTime++;
+drawBackground();
+// Update game objects even during drone fly-in
+if (level < 3) {
+updateEmissions();
+updateFlares();
+} else {
+updateLevel3FlareAndPlume();
+}
+drawPlumes();
+drawFlares();
+updateDroneFlyIn(); // This now updates both drones
+drawPixelDrone(drone1); // Draw both drones
+drawPixelDrone(drone2);
+updateUI();
+}
+requestAnimationFrame(gameLoop);
+}
+
+function init() {
+showSplash(GameState.SplashStart);
+gameState = GameState.SplashStart;
+}
+init();
+gameLoop();
+</script>
+</body>
+</html>

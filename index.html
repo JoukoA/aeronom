@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AERONOM</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-image: url('menu_background_image.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Keeps content vertically centered by default */
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #00ff00;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 40px;
+            text-shadow: 0 0 15px #00ff00;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 8px;
+        }
+
+        .menu-button {
+            display: block;
+            width: 300px;
+            padding: 20px;
+            margin: 15px 0; /* Existing vertical margin between buttons */
+            background: rgba(15, 52, 96, 0.8);
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            font-size: 1.5em;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.3s, box-shadow 0.3s, color 0.3s;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            text-transform: uppercase;
+            backdrop-filter: blur(3px);
+        }
+
+        /* Adjusting placement using margin-top on the first button */
+        .menu-button:first-of-type {
+            margin-top: 100px; /* Pushes the first button (and thus all subsequent ones) down */
+            /* To move them up, you could use a negative margin-top, e.g., margin-top: -50px;
+               or change justify-content on body. */
+        }
+
+
+        .menu-button:hover {
+            background-color: rgba(22, 33, 62, 0.9);
+            box-shadow: 0 0 25px #00ff00;
+            color: #ccffcc;
+        }
+    </style>
+</head>
+<body>
+    <a href="single_player.html" class="menu-button">Single Player</a>
+    <a href="two_player.html" class="menu-button">Two Player</a>
+</body>
+</html>
