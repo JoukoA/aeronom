@@ -134,6 +134,31 @@ bg: [
 'level2_background.png',
 'level3_background.png'
 ]
+// NEW: Seagull animation frames
+    seagull_up: 'seagull_up.png',
+    seagull_down: 'seagull_down.png'
+};
+
+// ... (other global variables) ...
+
+// NEW: Seagull animation images
+const seagullImageUp = new Image();
+seagullImageUp.src = ASSETS.seagull_up;
+
+const seagullImageDown = new Image();
+seagullImageDown.src = ASSETS.seagull_down;
+
+const seagull = {
+    x: -100,
+    y: 0,
+    width: 40, // Adjust to your image size (wingspan)
+    height: 30, // Adjust to your image size (body height)
+    speed: 1.5,
+    targetX: 0,
+    targetY: 0,
+    active: false,
+    animationFrame: 0, // NEW: Counter to control which frame to show
+    facingRight: true // To know which way the seagull is facing
 };
 
 // --- Music files (edit this list to match your mp3 files) ---
@@ -279,6 +304,72 @@ musicNotice.style.display = "block";
 music.onended = function() {
 playRandomMusic();
 };
+    function updateSeagull() {
+    if (!seagull.active) return;
+
+    const dx = seagull.targetX - seagull.x;
+    const dy = seagull.targetY - seagull.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Determine facing direction
+    if (dx > 0.5) { // Moving right
+        seagull.facingRight = true;
+    } else if (dx < -0.5) { // Moving left
+        seagull.facingRight = false;
+    }
+
+    if (dist < seagull.speed) {
+        seagull.x = seagull.targetX;
+        seagull.y = seagull.targetY;
+        setNewSeagullTarget();
+    } else {
+        seagull.x += (dx / dist) * seagull.speed;
+        seagull.y += (dy / dist) * seagull.speed;
+    }
+
+    // Increment animation frame counter
+    // Adjust 0.1 to control animation speed: higher value = faster flapping
+    seagull.animationFrame += 0.15; // NEW: Control animation speed
+
+    // Collision with drone1
+    if (checkCollision(drone1, seagull) && drone1.controlEnabled && !drone1.respawning) {
+        loseLife(drone1, 1, 'seagull');
+        setNewSeagullTarget();
+    }
+    // Collision with drone2
+    if (checkCollision(drone2, seagull) && drone2.controlEnabled && !drone2.respawning) {
+        loseLife(drone2, 2, 'seagull');
+        setNewSeagullTarget();
+    }
+}
+    function drawSeagull() {
+    // Check if seagull is active AND both animation images are loaded
+    if (!seagull.active || !seagullImageUp.complete || !seagullImageDown.complete) return;
+
+    ctx.save();
+    ctx.translate(seagull.x, seagull.y); // Translate to seagull's center
+
+    // Flip horizontally if facing left
+    if (!seagull.facingRight) {
+        ctx.scale(-1, 1);
+    }
+
+    // Determine which image to draw based on animationFrame
+    // The % 2 cycles between 0 and 1
+    const currentFrame = Math.floor(seagull.animationFrame) % 2;
+    let imageToDraw;
+
+    if (currentFrame === 0) {
+        imageToDraw = seagullImageUp;
+    } else { // currentFrame === 1
+        imageToDraw = seagullImageDown;
+    }
+
+    // Draw the selected image, centered on seagull.x, seagull.y
+    ctx.drawImage(imageToDraw, -seagull.width / 2, -seagull.height / 2, seagull.width, seagull.height);
+
+    ctx.restore(); // Restore global context (undo flip)
+}
 
 // --- Emission Sources and Flares ---
 let emissionSources = [];
