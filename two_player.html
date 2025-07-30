@@ -1204,6 +1204,11 @@ if (!levelTransition) {
 drawPlumes();
 drawFlares();
 
+    // --- Critical for Seagull Visibility ---
+    updateSeagull(); // Make sure this is called to update seagull position
+    drawSeagull();   // Make sure this is called to draw the seagull
+    // --- End Critical ---
+
 // Draw both drones (draw last to ensure they are on top)
 drawPixelDrone(drone1);
 drawPixelDrone(drone2);
