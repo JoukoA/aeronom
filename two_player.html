@@ -523,6 +523,13 @@ level3Flare = null;
 level3Plume = null;
 levelTransition = false;
 
+     // Reset seagull state for all levels first
+    seagull.active = false; // Ensure it's off by default
+    seagull.x = -100;       // Reset position off-screen
+    seagull.y = 0;
+    seagull.targetX = 0;    // Reset target
+    seagull.targetY = 0;
+    
 if (lvl >= 1 && lvl <= 3) {
 currentBg = backgrounds[lvl-1];
 }
@@ -544,7 +551,18 @@ drift: 0,
 vx: 1.2, vy: -0.2,
 t: 0
 };
-}
+
+     // --- NEW: Activate Seagull for Level 3 ---
+        seagull.active = true;
+        setNewSeagullTarget(); // Give it an initial target to start moving
+        // Set an initial position that's on-screen or flies in from off-screen
+        seagull.x = canvas.width + 50; // Start off-screen right
+        seagull.y = canvas.height / 2; // Start in the middle vertically
+        // The first call to setNewSeagullTarget will give it a target on screen
+        // Or you can set a specific starting target if you want it to fly into view:
+        // seagull.targetX = canvas.width - 100;
+        // seagull.targetY = 100;
+        // ------------------------------------------
 updateUI();
 }
 
@@ -749,6 +767,13 @@ plume.x = plume.startX + plume.drift;
 plume.radius += 0.15;
 return plume.life > 0;
 });
+}
+    
+    function setNewSeagullTarget() {
+    // Pick a random target within the canvas bounds,
+    // avoiding the UI at the top and instructions at the bottom.
+    seagull.targetX = Math.random() * (canvas.width - 60) + 30;
+    seagull.targetY = Math.random() * (canvas.height - 120) + 60;
 }
 
 function spawnFlare() {
