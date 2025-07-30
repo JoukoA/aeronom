@@ -133,32 +133,7 @@ bg: [
 'refinery_background.png',
 'level2_background.png',
 'level3_background.png'
-],
-// NEW: Seagull animation frames
-    seagull_up: 'seagull_up.png',
-    seagull_down: 'seagull_down.png'
-};
-
-// ... (other global variables) ...
-
-// NEW: Seagull animation images
-const seagullImageUp = new Image();
-seagullImageUp.src = ASSETS.seagull_up;
-
-const seagullImageDown = new Image();
-seagullImageDown.src = ASSETS.seagull_down;
-
-const seagull = {
-    x: -100,
-    y: 0,
-    width: 40, // Adjust to your image size (wingspan)
-    height: 30, // Adjust to your image size (body height)
-    speed: 1.5,
-    targetX: 0,
-    targetY: 0,
-    active: false,
-    animationFrame: 0, // NEW: Counter to control which frame to show
-    facingRight: true // To know which way the seagull is facing
+]
 };
 
 // --- Music files (edit this list to match your mp3 files) ---
@@ -304,72 +279,6 @@ musicNotice.style.display = "block";
 music.onended = function() {
 playRandomMusic();
 };
-    function updateSeagull() {
-    if (!seagull.active) return;
-
-    const dx = seagull.targetX - seagull.x;
-    const dy = seagull.targetY - seagull.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    // Determine facing direction
-    if (dx > 0.5) { // Moving right
-        seagull.facingRight = true;
-    } else if (dx < -0.5) { // Moving left
-        seagull.facingRight = false;
-    }
-
-    if (dist < seagull.speed) {
-        seagull.x = seagull.targetX;
-        seagull.y = seagull.targetY;
-        setNewSeagullTarget();
-    } else {
-        seagull.x += (dx / dist) * seagull.speed;
-        seagull.y += (dy / dist) * seagull.speed;
-    }
-
-    // Increment animation frame counter
-    // Adjust 0.1 to control animation speed: higher value = faster flapping
-    seagull.animationFrame += 0.15; // NEW: Control animation speed
-
-    // Collision with drone1
-    if (checkCollision(drone1, seagull) && drone1.controlEnabled && !drone1.respawning) {
-        loseLife(drone1, 1, 'seagull');
-        setNewSeagullTarget();
-    }
-    // Collision with drone2
-    if (checkCollision(drone2, seagull) && drone2.controlEnabled && !drone2.respawning) {
-        loseLife(drone2, 2, 'seagull');
-        setNewSeagullTarget();
-    }
-}
-    function drawSeagull() {
-    // Check if seagull is active AND both animation images are loaded
-    if (!seagull.active || !seagullImageUp.complete || !seagullImageDown.complete) return;
-
-    ctx.save();
-    ctx.translate(seagull.x, seagull.y); // Translate to seagull's center
-
-    // Flip horizontally if facing left
-    if (!seagull.facingRight) {
-        ctx.scale(-1, 1);
-    }
-
-    // Determine which image to draw based on animationFrame
-    // The % 2 cycles between 0 and 1
-    const currentFrame = Math.floor(seagull.animationFrame) % 2;
-    let imageToDraw;
-
-    if (currentFrame === 0) {
-        imageToDraw = seagullImageUp;
-    } else { // currentFrame === 1
-        imageToDraw = seagullImageDown;
-    }
-
-    // Draw the selected image, centered on seagull.x, seagull.y
-    ctx.drawImage(imageToDraw, -seagull.width / 2, -seagull.height / 2, seagull.width, seagull.height);
-
-    ctx.restore(); // Restore global context (undo flip)
-}
 
 // --- Emission Sources and Flares ---
 let emissionSources = [];
@@ -523,13 +432,6 @@ level3Flare = null;
 level3Plume = null;
 levelTransition = false;
 
-     // Reset seagull state for all levels first
-    seagull.active = false; // Ensure it's off by default
-    seagull.x = -100;       // Reset position off-screen
-    seagull.y = 0;
-    seagull.targetX = 0;    // Reset target
-    seagull.targetY = 0;
-    
 if (lvl >= 1 && lvl <= 3) {
 currentBg = backgrounds[lvl-1];
 }
@@ -551,18 +453,7 @@ drift: 0,
 vx: 1.2, vy: -0.2,
 t: 0
 };
-
-     // --- NEW: Activate Seagull for Level 3 ---
-        seagull.active = true;
-        setNewSeagullTarget(); // Give it an initial target to start moving
-        // Set an initial position that's on-screen or flies in from off-screen
-        seagull.x = canvas.width + 50; // Start off-screen right
-        seagull.y = canvas.height / 2; // Start in the middle vertically
-        // The first call to setNewSeagullTarget will give it a target on screen
-        // Or you can set a specific starting target if you want it to fly into view:
-        // seagull.targetX = canvas.width - 100;
-        // seagull.targetY = 100;
-        // ------------------------------------------
+}
 updateUI();
 }
 
@@ -767,13 +658,6 @@ plume.x = plume.startX + plume.drift;
 plume.radius += 0.15;
 return plume.life > 0;
 });
-}
-    
-    function setNewSeagullTarget() {
-    // Pick a random target within the canvas bounds,
-    // avoiding the UI at the top and instructions at the bottom.
-    seagull.targetX = Math.random() * (canvas.width - 60) + 30;
-    seagull.targetY = Math.random() * (canvas.height - 120) + 60;
 }
 
 function spawnFlare() {
@@ -1203,11 +1087,6 @@ if (!levelTransition) {
 
 drawPlumes();
 drawFlares();
-
-    // --- Critical for Seagull Visibility ---
-    updateSeagull(); // Make sure this is called to update seagull position
-    drawSeagull();   // Make sure this is called to draw the seagull
-    // --- End Critical ---
 
 // Draw both drones (draw last to ensure they are on top)
 drawPixelDrone(drone1);
