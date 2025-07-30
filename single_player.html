@@ -66,7 +66,7 @@ body {
     justify-content: center;
     cursor: default;
     transition: opacity 0.4s;
-    pointer-events: auto; /* Ensure splash itself can be interacted with */
+    pointer-events: auto;
 }
 .splash img {
     max-width: 90%;
@@ -79,7 +79,7 @@ body {
     position: absolute;
     left: 0; top: 0;
     width: 800px; height: 600px;
-    z-index: 9; /* Lower than splash, higher than game buttons */
+    z-index: 9;
     background: #000;
     opacity: 0;
     transition: opacity 1s;
@@ -94,19 +94,33 @@ body {
     border: 2px solid #00ff00;
     padding: 24px;
     font-size: 1.3em;
-    z-index: 20; /* Highest z-index for this temporary notice */
+    z-index: 20;
     text-shadow: 2px 2px 0 #000;
     display: none;
-    pointer-events: auto; /* Allow clicks on the notice */
+    pointer-events: auto;
 }
 
 /* --- Button Styles --- */
-#gameButtons {
+/* Ensure buttons are never hidden by CSS initially unless specified in JS */
+#gameButtons, #controlButtons {
+    /* Always ensure they are positioned within the game container */
     position: absolute;
+    /* Important: Resetting display to an initial state that allows JS to control it */
+    display: none; /* This will be overridden by JS when game starts */
+    opacity: 1; /* Ensure not transparent */
+    visibility: visible; /* Ensure not hidden */
+    pointer-events: auto; /* Always clickable */
+    box-sizing: border-box; /* Include padding/border in element's total width/height */
+    /* Add some border/padding just to be sure they have dimensions */
+    padding: 5px;
+    border: 1px solid rgba(0,255,0,0.1);
+}
+
+#gameButtons {
     bottom: 10px;
     right: 10px;
-    z-index: 5; /* Ensure these are above game elements */
-    display: flex;
+    z-index: 5;
+    display: flex; /* Default flex display when active */
     gap: 10px;
 }
 .game-button {
@@ -119,7 +133,7 @@ body {
     cursor: pointer;
     box-shadow: 0 0 8px #00ff00;
     transition: background-color 0.2s, box-shadow 0.2s;
-    pointer-events: auto; /* Ensure buttons are clickable */
+    pointer-events: auto;
 }
 .game-button:hover {
     background-color: #1a1a2e;
@@ -129,7 +143,6 @@ body {
     background-color: #0a1f38;
     box-shadow: 0 0 4px #00ff00;
 }
-/* Style for splash screen button */
 #splash-start-button {
     margin-top: 20px;
     padding: 12px 24px;
@@ -150,11 +163,10 @@ body {
 
 /* --- Control Buttons --- */
 #controlButtons {
-    position: absolute;
     bottom: 10px;
     left: 10px;
-    z-index: 5; /* Ensure these are above game elements */
-    display: grid;
+    z-index: 5;
+    display: grid; /* Default grid display when active */
     grid-template-areas:
         ". up ."
         "left . right"
@@ -162,7 +174,7 @@ body {
     grid-template-columns: repeat(3, 40px);
     grid-template-rows: repeat(3, 40px);
     gap: 5px;
-    pointer-events: auto; /* Ensure buttons are clickable */
+    pointer-events: auto;
 }
 
 .control-button {
@@ -207,8 +219,7 @@ body {
     <div id="instructions">
         Avoid Flares | Collect Emission Data<br>
     </div>
-    <div id="splash" class="splash" style="display:none;">
-        <img id="splash-img" src="" alt="Splash">
+    <div id="splash" class="splash"> <img id="splash-img" src="" alt="Splash">
         <button id="splash-start-button" class="game-button">START MISSION</button>
     </div>
     <div id="fade" class="fade"></div>
@@ -219,8 +230,7 @@ body {
         <button id="resetButton" class="game-button">RESET</button>
     </div>
 
-    <div id="controlButtons" style="display:none;">
-        <button id="upButton" class="control-button">▲</button>
+    <div id="controlButtons"> <button id="upButton" class="control-button">▲</button>
         <button id="leftButton" class="control-button">◀</button>
         <button id="rightButton" class="control-button">▶</button>
         <button id="downButton" class="control-button">▼</button>
@@ -271,4 +281,16 @@ const levelElement = document.getElementById('level');
 const statusElement = document.getElementById('status');
 const splashDiv = document.getElementById('splash');
 const splashImg = document.getElementById('splash-img');
-const fadeDiv = document.getElementById
+const fadeDiv = document.getElementById('fade');
+const music = document.getElementById('bg-music');
+const musicNotice = document.getElementById('musicNotice');
+
+// Button Elements
+const splashStartButton = document.getElementById('splash-start-button');
+const pauseResumeButton = document.getElementById('pauseResumeButton');
+const resetButton = document.getElementById('resetButton');
+const gameButtonsDiv = document.getElementById('gameButtons');
+
+// Control Buttons
+const controlButtonsDiv = document.getElementById('controlButtons');
+const upButton = document.getElementById
