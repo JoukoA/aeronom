@@ -156,8 +156,8 @@ body {
         ". up ."
         "left . right"
         ". down .";
-    grid-template-columns: repeat(3, 40px); /* Adjust size as needed */
-    grid-template-rows: repeat(3, 40px); /* Adjust size as needed */
+    grid-template-columns: repeat(3, 40px);
+    grid-template-rows: repeat(3, 40px);
     gap: 5px;
 }
 
@@ -166,14 +166,14 @@ body {
     color: #00ff00;
     border: 2px solid #00ff00;
     font-family: 'Courier New', monospace;
-    font-size: 20px; /* Larger text for directional buttons */
+    font-size: 20px;
     cursor: pointer;
     box-shadow: 0 0 8px #00ff00;
     display: flex;
     justify-content: center;
     align-items: center;
-    user-select: none; /* Prevent text selection on rapid clicks */
-    -webkit-tap-highlight-color: rgba(0,0,0,0); /* Remove tap highlight on mobile */
+    user-select: none;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 .control-button:hover {
     background-color: #1a1a2e;
@@ -215,7 +215,8 @@ body {
         <button id="resetButton" class="game-button">RESET</button>
     </div>
 
-    <div id="controlButtons" style="display:none;"> <button id="upButton" class="control-button">▲</button>
+    <div id="controlButtons" style="display:none;">
+        <button id="upButton" class="control-button">▲</button>
         <button id="leftButton" class="control-button">◀</button>
         <button id="rightButton" class="control-button">▶</button>
         <button id="downButton" class="control-button">▼</button>
@@ -308,7 +309,7 @@ let keys = {
     'ArrowRight': false,
     'ArrowUp': false,
     'ArrowDown': false
-}; // Initialize keys for button control
+};
 let windDirection = 1;
 let windSpeed = 0.5;
 let droneRespawnTimer = 0;
@@ -405,14 +406,14 @@ function showSplash(type) {
     splashDiv.style.display = 'flex';
     splashDiv.style.pointerEvents = 'auto';
     gameButtonsDiv.style.display = 'none';
-    controlButtonsDiv.style.display = 'none'; // Hide control buttons on splash
+    controlButtonsDiv.style.display = 'none';
 }
 function hideSplash() {
     splashDiv.style.opacity = 0;
     splashDiv.style.pointerEvents = 'none';
     setTimeout(() => { splashDiv.style.display = 'none'; }, 400);
-    gameButtonsDiv.style.display = 'flex';
-    controlButtonsDiv.style.display = 'grid'; // Show control buttons after splash
+    gameButtonsDiv.style.display = 'flex'; // Make game buttons visible
+    controlButtonsDiv.style.display = 'grid'; // Make control buttons visible
 }
 
 // --- Fade Helper ---
@@ -466,10 +467,10 @@ function bindControlButton(button, keyName) {
 
     button.addEventListener('mousedown', press);
     button.addEventListener('mouseup', release);
-    button.addEventListener('mouseleave', release); // Release if mouse leaves button while pressed
-    button.addEventListener('touchstart', (e) => { e.preventDefault(); press(); }, { passive: false }); // Prevent default scroll
+    button.addEventListener('mouseleave', release);
+    button.addEventListener('touchstart', (e) => { e.preventDefault(); press(); }, { passive: false });
     button.addEventListener('touchend', release);
-    button.addEventListener('touchcancel', release); // If touch is interrupted
+    button.addEventListener('touchcancel', release);
 }
 
 bindControlButton(upButton, 'ArrowUp');
@@ -497,7 +498,6 @@ function resetGame() {
     if (isPaused) {
         togglePause();
     }
-    // Clear any active button presses
     keys = {
         'ArrowLeft': false,
         'ArrowRight': false,
@@ -508,7 +508,7 @@ function resetGame() {
     gameState = GameState.SplashStart;
     isPaused = false;
     pauseResumeButton.textContent = "PAUSE";
-    init(); // Call init to show the start splash screen
+    init();
 }
 
 
@@ -533,6 +533,10 @@ function startGame() {
     updateUI();
     ensureMusicPlaying();
     startDroneFlyIn();
+
+    // Ensure buttons are visible when game starts
+    gameButtonsDiv.style.display = 'flex';
+    controlButtonsDiv.style.display = 'grid';
 }
 
 function startDroneFlyIn() {
@@ -609,7 +613,6 @@ function updateDrone() {
     const speed = 2.5;
     const smoothing = 0.12;
 
-    // Use keys object to control movement
     if (keys['ArrowLeft']) drone.targetX -= speed;
     if (keys['ArrowRight']) drone.targetX += speed;
     if (keys['ArrowUp']) drone.targetY -= speed;
@@ -1035,7 +1038,6 @@ function handleLevelTransition() {
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Only update game logic if not paused
     if (!isPaused) {
         if (gameState === GameState.Playing) {
             gameTime++;
@@ -1052,43 +1054,4 @@ function gameLoop() {
             drawPlumes();
             drawFlares();
             drawPixelDrone();
-            if (levelTransition) handleLevelTransition();
-            updateUI();
-            checkForLevelUp();
-        } else if (gameState === GameState.Entering) {
-            gameTime++;
-            drawBackground();
-            if (level < 3) {
-                updateEmissions();
-                updateFlares();
-            } else {
-                updateLevel3FlareAndPlume();
-            }
-            drawPlumes();
-            drawFlares();
-            updateDroneFlyIn();
-            drawPixelDrone();
-            updateUI();
-        }
-    } else {
-        // If paused, only draw the current state without updating logic
-        drawBackground();
-        drawPlumes();
-        drawFlares();
-        drawPixelDrone();
-    }
-    requestAnimationFrame(gameLoop);
-}
-
-function init() {
-    showSplash(GameState.SplashStart);
-    gameState = GameState.SplashStart;
-    // Ensure control buttons are hidden on initial splash
-    controlButtonsDiv.style.display = 'none';
-    gameButtonsDiv.style.display = 'none';
-}
-init();
-gameLoop();
-</script>
-</body>
-</html>
+            if (level
