@@ -294,7 +294,7 @@ const flareIgniteSound = new Audio('flare_ignite.mp3');
 
 const droneHitSound = new Audio('drone_hit.mp3');
 
-        flareIgniteSound.volume = 0.1;
+Â  Â  Â  Â  flareIgniteSound.volume = 0.1;
 
 flareIgniteSound.volume = 0.2;
 
@@ -384,11 +384,11 @@ const SCORE_TO_LEVEL_UP = 1000;
 
 const LEVEL_UP_SCORES = [
 
-SCORE_TO_LEVEL_UP,      // For Level 1 to Level 2
+SCORE_TO_LEVEL_UP,Â  Â  Â  // For Level 1 to Level 2
 
-SCORE_TO_LEVEL_UP * 2,  // For Level 2 to Level 3
+SCORE_TO_LEVEL_UP * 2,Â  // For Level 2 to Level 3
 
-SCORE_TO_LEVEL_UP * 3   // For Level 3 to Victory
+SCORE_TO_LEVEL_UP * 3Â  Â // For Level 3 to Victory
 
 ];
 
@@ -396,26 +396,33 @@ SCORE_TO_LEVEL_UP * 3   // For Level 3 to Victory
 
 // --- Drone ---
 
-const drone = {
-x: -40, // Off-screen start
-y: DRONE_START.y,
-targetX: DRONE_START.x,
-targetY: DRONE_START.y,
-width: 32,
-height: 24,
-inPlume: false,
-inPlumeLastFrame: false,
-pulseTime: 0,
-rotorSpin: 0,
-plumeFrameCounter: 0
-};
+const DRONE_START = {x: 100, y: 300};
 
-// --- Touch Controls ---
-let touchActive = false;
-let touchTargetX = DRONE_START.x;
-let touchTargetY = DRONE_START.y;
-const CONTROL_LAG = 15; // frames of lag (higher = more delay)
-let controlQueue = [];
+const drone = {
+
+x: -40, // Off-screen start
+
+y: DRONE_START.y,
+
+targetX: DRONE_START.x,
+
+targetY: DRONE_START.y,
+
+width: 32,
+
+height: 24,
+
+inPlume: false,
+
+inPlumeLastFrame: false,
+
+pulseTime: 0,
+
+rotorSpin: 0,
+
+plumeFrameCounter: 0
+
+};
 
 
 
@@ -1473,7 +1480,7 @@ ctx.fillStyle = `rgba(255, 50, 50, ${pulse * 0.8})`;
 
 ctx.font = "bold 14px Courier New";
 
-ctx.fillText("⚠", flare.x - 6, flare.y - 18);
+ctx.fillText("âš ", flare.x - 6, flare.y - 18);
 
 } else if (flare.burning > 0) {
 
@@ -1529,7 +1536,7 @@ updateUI();
 
 droneHitSound.currentTime = 0; // Rewind the sound to the beginning
 
-droneHitSound.play();         // Play the crash sound
+droneHitSound.play();Â  Â  Â  Â  Â // Play the crash sound
 
 statusElement.textContent = "DRONE DAMAGED!";
 
