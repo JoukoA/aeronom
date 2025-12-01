@@ -862,30 +862,64 @@ levelElement.textContent = level;
 
 
 function updateDrone() {
+    if (!droneControlEnabled) return;
+    const speed = 2.5;
 
-if (!droneControlEnabled) return;
+    // ------------------------------
+    // TOUCH CONTROL WITH LAG
+    // ------------------------------
+    if (touchActive) {
+        // lag controls the smoothing/lag effect for touch movement
+        const lag = 0.06;
+        drone.targetX += (touchX - drone.targetX) * lag;
+        drone.targetY += (touchY - drone.targetY) * lag;
+    } else {
+        // Keyboard controls
+        if (keys['ArrowLeft']) drone.targetX -= speed;
+        if (keys['ArrowRight']) drone.targetX += speed;
+        if (keys['ArrowUp']) drone.targetY -= speed;
+        if (keys['ArrowDown']) drone.targetY += speed;
+    }
 
-const speed = 2.5;
+    // Apply boundaries
+    drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
+    drone.targetY = Math.max(20, Math.min(canvas.height - 80, drone.targetY));
 
-const smoothing = 0.12;
+    // Smooth movement of drone → single smoothing declaration and single application
+    const smoothing = 0.10;
+    drone.x += (drone.targetX - drone.x) * smoothing;
+    drone.y += (drone.targetY - drone.y) * smoothing;
 
-// ------------------------------
-// TOUCH CONTROL WITH LAG
-// ------------------------------
-if (touchActive) {
-    // smoothing controls the lag effect — higher = smoother/slower
-    const lag = 0.06;
+    drone.inPlume = false;
 
-    drone.targetX += (touchX - drone.targetX) * lag;
-    drone.targetY += (touchY - drone.targetY) * lag;
-} else {
-    // Original keyboard controls
-    if (keys['ArrowLeft']) drone.targetX -= speed;
-    if (keys['ArrowRight']) drone.targetX += speed;
-    if (keys['ArrowUp']) drone.targetY -= speed;
-    if (keys['ArrowDown']) drone.targetY += speed;
+    let inPlumeThisFrame = false;
+
+    if (level < 3) {
+        for (let plume of plumes) {
+            const dist = Math.sqrt((drone.x - plume.x) ** 2 + (drone.y - plume.y) ** 2);
+            if (dist < plume.radius * 1.1) {
+                inPlumeThisFrame = true;
+                break;
+            }
+        }
+    } else if (level === 3 && level3Plume) {
+        const dist = Math.sqrt((drone.x - level3Plume.x) ** 2 + (drone.y - level3Plume.y) ** 2);
+        if (dist < level3Plume.radius * 1.1) {
+            inPlumeThisFrame = true;
+        }
+    }
+
+    if (inPlumeThisFrame) {
+        drone.inPlume = true;
+        // Score accumulates 20% slower: from 2 to 1.6 per frame
+        score += 1.6;
+    } else {
+        drone.inPlume = false;
+    }
+
+    if (drone.inPlume) drone.pulseTime += 0.2;
+    drone.inPlumeLastFrame = drone.inPlume;
 }
-
 // Apply boundaries
 drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
 drone.targetY = Math.max(20, Math.min(canvas.height - 80, drone.targetY));
@@ -1861,3 +1895,4 @@ gameLoop();
 </body>
 
 </html>
+
