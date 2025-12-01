@@ -396,33 +396,26 @@ SCORE_TO_LEVEL_UP * 3   // For Level 3 to Victory
 
 // --- Drone ---
 
-const DRONE_START = {x: 100, y: 300};
-
 const drone = {
-
 x: -40, // Off-screen start
-
 y: DRONE_START.y,
-
 targetX: DRONE_START.x,
-
 targetY: DRONE_START.y,
-
 width: 32,
-
 height: 24,
-
 inPlume: false,
-
 inPlumeLastFrame: false,
-
 pulseTime: 0,
-
 rotorSpin: 0,
-
 plumeFrameCounter: 0
-
 };
+
+// --- Touch Controls ---
+let touchActive = false;
+let touchTargetX = DRONE_START.x;
+let touchTargetY = DRONE_START.y;
+const CONTROL_LAG = 15; // frames of lag (higher = more delay)
+let controlQueue = [];
 
 
 
@@ -583,35 +576,6 @@ setTimeout(()=>{fadeDiv.style.display='none';}, 600);
 document.addEventListener('keydown', (e) => { keys[e.key] = true; });
 
 document.addEventListener('keyup', (e) => { keys[e.key] = false; });
-// -------------------------------
-// TOUCH CONTROL (with lag effect)
-// -------------------------------
-let touchActive = false;
-let touchX = DRONE_START.x;
-let touchY = DRONE_START.y;
-
-// Touch start
-canvas.addEventListener("touchstart", e => {
-    const t = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    touchX = t.clientX - rect.left;
-    touchY = t.clientY - rect.top;
-    touchActive = true;
-});
-
-// Touch move
-canvas.addEventListener("touchmove", e => {
-    const t = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    touchX = t.clientX - rect.left;
-    touchY = t.clientY - rect.top;
-    e.preventDefault(); // prevents scroll
-});
-
-// Touch end
-canvas.addEventListener("touchend", () => {
-    touchActive = false;
-});
 
 
 
@@ -862,73 +826,20 @@ levelElement.textContent = level;
 
 
 function updateDrone() {
-    if (!droneControlEnabled) return;
-    const speed = 2.5;
 
-    // ------------------------------
-    // TOUCH CONTROL WITH LAG
-    // ------------------------------
-    if (touchActive) {
-        // lag controls the smoothing/lag effect for touch movement
-        const lag = 0.06;
-        drone.targetX += (touchX - drone.targetX) * lag;
-        drone.targetY += (touchY - drone.targetY) * lag;
-    } else {
-        // Keyboard controls
-        if (keys['ArrowLeft']) drone.targetX -= speed;
-        if (keys['ArrowRight']) drone.targetX += speed;
-        if (keys['ArrowUp']) drone.targetY -= speed;
-        if (keys['ArrowDown']) drone.targetY += speed;
-    }
+if (!droneControlEnabled) return;
 
-    // Apply boundaries
-    drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
-    drone.targetY = Math.max(20, Math.min(canvas.height - 80, drone.targetY));
+const speed = 2.5;
 
-    // Smooth movement of drone → single smoothing declaration and single application
-    const smoothing = 0.10;
-    drone.x += (drone.targetX - drone.x) * smoothing;
-    drone.y += (drone.targetY - drone.y) * smoothing;
+const smoothing = 0.12;
 
-    drone.inPlume = false;
+if (keys['ArrowLeft']) drone.targetX -= speed;
 
-    let inPlumeThisFrame = false;
+if (keys['ArrowRight']) drone.targetX += speed;
 
-    if (level < 3) {
-        for (let plume of plumes) {
-            const dist = Math.sqrt((drone.x - plume.x) ** 2 + (drone.y - plume.y) ** 2);
-            if (dist < plume.radius * 1.1) {
-                inPlumeThisFrame = true;
-                break;
-            }
-        }
-    } else if (level === 3 && level3Plume) {
-        const dist = Math.sqrt((drone.x - level3Plume.x) ** 2 + (drone.y - level3Plume.y) ** 2);
-        if (dist < level3Plume.radius * 1.1) {
-            inPlumeThisFrame = true;
-        }
-    }
+if (keys['ArrowUp']) drone.targetY -= speed;
 
-    if (inPlumeThisFrame) {
-        drone.inPlume = true;
-        // Score accumulates 20% slower: from 2 to 1.6 per frame
-        score += 1.6;
-    } else {
-        drone.inPlume = false;
-    }
-
-    if (drone.inPlume) drone.pulseTime += 0.2;
-    drone.inPlumeLastFrame = drone.inPlume;
-}
-// Apply boundaries
-drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
-drone.targetY = Math.max(20, Math.min(canvas.height - 80, drone.targetY));
-
-// Smooth movement of drone → bigger smoothing = more control lag
-const smoothing = 0.10;
-drone.x += (drone.targetX - drone.x) * smoothing;
-drone.y += (drone.targetY - drone.y) * smoothing;
-
+if (keys['ArrowDown']) drone.targetY += speed;
 
 drone.targetX = Math.max(20, Math.min(canvas.width - 20, drone.targetX));
 
@@ -1895,4 +1806,3 @@ gameLoop();
 </body>
 
 </html>
-
